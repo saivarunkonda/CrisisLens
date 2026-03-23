@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crisislens-web
+  namespace: crisislens
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crisislens-web
+  template:
+    metadata:
+      labels:
+        app: crisislens-web
+    spec:
+      containers:
+        - name: web
+          image: crisislens/web:latest
+          env:
+            - name: ML_SERVICE_URL
+              value: "http://crisislens-ml:8000"
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crisislens-web
+  namespace: crisislens
+spec:
+  selector:
+    app: crisislens-web
+  ports:
+    - port: 80
+      targetPort: 3000

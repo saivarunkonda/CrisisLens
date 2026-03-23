@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CrisisLens
 
-## Getting Started
+CrisisLens is a hackathon-ready platform that combines citizen incident reporting and risk forecasting to help response teams act earlier during local crises.
 
-First, run the development server:
+## Stack
+
+- Next.js (App Router, TypeScript, Tailwind)
+- **Auth.js (NextAuth v5)** — email/password demo accounts + optional **Google / GitHub SSO**
+- **RBAC** — `admin` / `analyst` / `viewer` (OAuth roles from env email lists)
+- Light / dark theme (`next-themes`)
+- App shell: **sidebar + top navigation**
+- API routes (session-protected): risk snapshot, reports, **Kubeflow retrain**
+- Python FastAPI ML microservice
+- Dockerfiles + Kubernetes manifests
+- Kubeflow pipeline starter (`pipelines/crisislens_pipeline.py`)
+- GitHub Actions CI
+
+## Routes
+
+| Path | Access |
+|------|--------|
+| `/` | Redirects to `/login` or `/dashboard` |
+| `/login` | Public — SSO + credentials |
+| `/dashboard` | Signed-in users |
+| `/settings` | Signed-in users — theme + RBAC info |
+| `/ml/retrain` | **Admin only** — trigger KFP run via API |
+
+## Auth & RBAC
+
+1. Copy `.env.example` to `.env.local`.
+2. Set **`AUTH_SECRET`** (required): `openssl rand -base64 32`.
+3. **Demo credentials** (no DB):
+
+   - `admin@crisislens.local` / `CrisisLens2026!` — admin (Kubeflow + reports)
+   - `analyst@crisislens.local` / `DemoUser2026!` — analyst
+   - `viewer@crisislens.local` / `ViewOnly2026!` — read-only (no report POST)
+
+4. **SSO**: set `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` and/or `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` (see `.env.example`). Roles for OAuth users come from **`ADMIN_EMAILS`** and **`ANALYST_EMAILS`** (comma-separated emails); others default to **analyst**.
+
+## Kubeflow retrain (API)
+
+- `POST /api/kubeflow/retrain` — creates a pipeline run (admin only).
+- Env: `KFP_API_BASE_URL`, `KFP_PIPELINE_ID`, optional `KFP_PIPELINE_VERSION_ID`, `KFP_BEARER_TOKEN`.
+- If not configured, returns a **dry-run** success for demos.
+
+## Project structure (key files)
+
+- `src/auth.ts` — NextAuth config + middleware `authorized` (incl. admin redirect off `/ml/*`)
+- `src/middleware.ts` — exports `auth` as middleware
+- `src/app/login/page.tsx` — login + SSO
+- `src/app/(app)/layout.tsx` — sidebar + top bar
+- `src/app/(app)/dashboard/page.tsx` — risk dashboard
+- `src/app/(app)/ml/retrain/page.tsx` — retrain UI
+- `src/app/api/kubeflow/retrain/route.ts` — KFP REST caller
+- `src/lib/kubeflow.ts` — `POST .../apis/v1beta1/runs`
+- `src/lib/rbac.ts` — role resolution
+
+## Run locally
+
+**Terminal 1 — ML (optional)**
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pip install -r ml-service/requirements.txt
+uvicorn ml-service.app:app --reload --port 8000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+**Terminal 2 — Next.js**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cp .env.example .env.local
+# Set AUTH_SECRET and ML_SERVICE_URL=http://localhost:8000
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open [http://localhost:3000](http://localhost:3000) → sign in → `/dashboard`.
 
-## Learn More
+## Docker / Kubernetes
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+docker build -t crisislens/web:latest -f Dockerfile.web .
+docker build -t crisislens/ml:latest -f Dockerfile.ml .
+kubectl apply -f infra/k8s/namespace.yaml
+kubectl apply -f infra/k8s/web-deployment.yaml
+kubectl apply -f infra/k8s/ml-deployment.yaml
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Set **`AUTH_SECRET`** and **`ML_SERVICE_URL`** (and optional **`KFP_*`**) in the web deployment env.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Kubeflow pipeline (offline compile)
 
-## Deploy on Vercel
+```bash
+pip install kfp
+python pipelines/crisislens_pipeline.py
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Upload `crisislens_pipeline.yaml` to Kubeflow Pipelines UI.
