@@ -39,3 +39,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local tools and env
+.tools/
+.venv/
+.vscode/
+.idea/
+.env.local
+.env.*.local
+
+# Terraform
+.terraform/
+.terraform.tfstate*
+.terraform.lock.hcl
+
+# archives and binaries
+*.zip
+*.exe
+
+# Python
+__pycache__/
+*.pyc
