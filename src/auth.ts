@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
 import type { NextAuthConfig } from "next-auth";
+import { supabaseAdapter } from "@/lib/supabaseAuth";
 import { NextResponse } from "next/server";
 import { credentialsRoleForEmail, roleForEmail, type Role } from "@/lib/rbac";
 
@@ -63,6 +64,7 @@ export const authConfig: NextAuthConfig = {
   pages: {
     signIn: "/login",
   },
+  adapter: process.env.AUTH_BACKEND === "supabase" ? supabaseAdapter : undefined,
   callbacks: {
     authorized({ auth, request }) {
       const path = request.nextUrl.pathname;

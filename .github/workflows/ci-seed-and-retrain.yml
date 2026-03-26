@@ -1,0 +1,91 @@
+name: CI - Seed, ETL, Build Trainer, Trigger Retrain
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  seed-and-etl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Seed Supabase (Postgres)
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        run: |
+          node scripts/seed-supabase.js
+
+      - name: Seed MongoDB
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: |
+          node scripts/seed-mongo.js
+
+      - name: Run ETL and upload to S3
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        run: |
+          node scripts/sync-reports-to-mongo.js
+
+  build-and-trigger:
+    needs: seed-and-etl
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and push trainer image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.ml
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/crisislens-trainer:latest,ghcr.io/${{ github.repository_owner }}/crisislens-trainer:${{ github.sha }}
+
+      - name: Trigger retrain endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
+          TRAINING_MANIFEST: ${{ secrets.TRAINING_MANIFEST }}
+          IMAGE_TAG: ghcr.io/${{ github.repository_owner }}/crisislens-trainer:${{ github.sha }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$DEPLOY_KEY" ]; then
+            echo "APP_URL and DEPLOY_KEY required"; exit 1
+          fi
+          echo "Calling retrain endpoint with image $IMAGE_TAG"
+          curl -sS -X POST "$APP_URL/api/kubeflow/retrain" \
+            -H "Authorization: Bearer $DEPLOY_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"manifest":"'"$TRAINING_MANIFEST"'","tag":"workflow-${{ github.sha }}","image":"'"$IMAGE_TAG"'"}'

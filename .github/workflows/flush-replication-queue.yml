@@ -1,0 +1,20 @@
+name: Flush replication queue
+
+on:
+  schedule:
+    - cron: '0 * * * *' # hourly
+  workflow_dispatch:
+
+jobs:
+  flush:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger internal flush endpoint
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+        run: |
+          if [ -z "$APP_URL" ] || [ -z "$INTERNAL_API_KEY" ]; then
+            echo "APP_URL and INTERNAL_API_KEY must be set as repository secrets"; exit 1
+          fi
+          curl -sS -X POST "$APP_URL/api/internal/replication/flush" -H "x-internal-key: $INTERNAL_API_KEY" -H "Content-Type: application/json" -d '{}'

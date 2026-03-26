@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: flush-replication-queue
+  namespace: default
+spec:
+  schedule: "0 * * * *" # hourly
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: flush-replication-sa
+          containers:
+            - name: flush
+              image: curlimages/curl:8.2.1
+              env:
+                - name: INTERNAL_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: internal-api-secret
+                      key: INTERNAL_API_KEY
+                - name: APP_URL
+                  value: "https://your-app.example.com"
+              args:
+                - -sS
+                - -X
+                - POST
+                - "$(APP_URL)/api/internal/replication/flush"
+                - -H
+                - "x-internal-key: $(INTERNAL_API_KEY)"
+                - -H
+                - "Content-Type: application/json"
+                - -d
+                - '{}'
+          restartPolicy: OnFailure

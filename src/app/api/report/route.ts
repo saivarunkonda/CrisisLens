@@ -8,7 +8,6 @@ type ReportBody = {
   severity?: number;
   note?: string;
 };
-
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user) {
@@ -26,7 +25,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Severity must be between 1 and 5." }, { status: 400 });
   }
 
-  const report = addReport({
+  const report = await addReport({
     region: body.region,
     category: body.category,
     severity: body.severity,
@@ -40,5 +39,6 @@ export async function GET() {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return NextResponse.json({ reports: getReports() });
+  const reports = await getReports();
+  return NextResponse.json({ reports });
 }

@@ -2,14 +2,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getRegionDimensions, getReports, recommendationFor } from "@/lib/mockStore";
 import { predictOverallRisk } from "@/lib/mlClient";
-
 export async function GET() {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const dimensions = getRegionDimensions();
+  const dimensions = await getRegionDimensions();
   const results = await Promise.all(
     dimensions.map(async (d) => {
       const { overallRisk, source } = await predictOverallRisk(
@@ -38,6 +37,8 @@ export async function GET() {
     return row;
   });
 
+  const reports = await getReports();
+
   return NextResponse.json({
     generatedAt: new Date().toISOString(),
     ml: {
@@ -47,7 +48,7 @@ export async function GET() {
     },
     summary: {
       regions: risks.length,
-      reports: getReports().length,
+      reports: reports.length,
       highRiskRegions: risks.filter((r) => r.overallRisk >= 60).length,
     },
     risks,
