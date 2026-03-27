@@ -4,7 +4,7 @@ flowchart LR
   end
 
   subgraph Frontend
-    N[Next.js App\n(App Router + NextAuth)]
+    N["Next.js App<br/>(App Router + NextAuth)"]
   end
 
   subgraph Backend
@@ -13,15 +13,15 @@ flowchart LR
   end
 
   subgraph Datastores
-    S[Supabase (Postgres)\nreports, users, risk_snapshots, ml_models]
-    M[MongoDB (raw_reports, replication_queue)]
+    S["Supabase (Postgres)<br/>reports, users, risk_snapshots, ml_models"]
+    M["MongoDB<br/>(raw_reports, replication_queue)"]
   end
 
   subgraph Infra
-    EKS[EKS Cluster / Kubeflow]
-    S3[S3 Training Bucket]
-    GH[GitHub Actions CI]
-    TF[Terraform / eksctl]
+    EKS["EKS Cluster / Kubeflow"]
+    S3["S3 Training Bucket"]
+    GH["GitHub Actions CI"]
+    TF["Terraform / eksctl"]
   end
 
   U -->|browser| N
@@ -41,15 +41,15 @@ flowchart LR
 
   %% Secrets (placeholders only)
   classDef secrets fill:#ffe4b5,stroke:#cc9900;
-  subgraph Secrets [Secrets - DO NOT COMMIT]
-    SEC1[SUPABASE_SERVICE_ROLE_KEY]\n(server-only):::secrets
-    SEC2[NEXT_PUBLIC_SUPABASE_URL]\n(client-ok):::secrets
-    SEC3[MONGODB_URI]\n(server-only):::secrets
-    SEC4[AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY]\n(CI/provision):::secrets
-    SEC5[S3_BUCKET]\n(CI/config):::secrets
-    SEC6[GHCR_TOKEN]\n(CI->push image):::secrets
-    SEC7[DEPLOY_KEY]\n(API auth for retrain):::secrets
-    SEC8[INTERNAL_API_KEY]\n(flush endpoint):::secrets
+  subgraph Secrets ["Secrets - DO NOT COMMIT"]
+    SEC1["SUPABASE_SERVICE_ROLE_KEY<br/>(server-only)"]:::secrets
+    SEC2["NEXT_PUBLIC_SUPABASE_URL<br/>(client-ok)"]:::secrets
+    SEC3["MONGODB_URI<br/>(server-only)"]:::secrets
+    SEC4["AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY<br/>(CI/provision)"]:::secrets
+    SEC5["S3_BUCKET<br/>(CI/config)"]:::secrets
+    SEC6["GHCR_TOKEN<br/>(CI->push image)"]:::secrets
+    SEC7["DEPLOY_KEY<br/>(API auth for retrain)"]:::secrets
+    SEC8["INTERNAL_API_KEY<br/>(flush endpoint)"]:::secrets
   end
 
   SEC1 --> S
