@@ -1,6 +1,6 @@
 // Supabase Auth provider for NextAuth.js
 // The `@auth/supabase-adapter` package is optional; load it at runtime if available.
-/* eslint-disable @typescript-eslint/no-var-requires */
+ 
 declare const require: any;
 let SupabaseAdapterAny: any = undefined;
 try {

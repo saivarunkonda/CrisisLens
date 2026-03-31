@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
     // Try to submit to Kubernetes if available. If USE_KUBEFLOW=true, submit a TFJob CRD.
     try {
       // dynamic import to avoid requiring the package on platforms without it
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const k8s = require('@kubernetes/client-node')
       const kc = new k8s.KubeConfig()
       try { kc.loadFromDefault() } catch (e) { /* ignore */ }
