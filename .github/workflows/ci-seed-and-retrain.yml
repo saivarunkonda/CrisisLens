@@ -22,16 +22,19 @@ jobs:
           npm ci
 
       - name: Seed Supabase (Postgres)
-        if: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY != '' && (secrets.NEXT_PUBLIC_SUPABASE_URL != '' || secrets.SUPABASE_URL != '') }}
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_URL || secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_URL_ALT: ${{ secrets.SUPABASE_URL }}
         run: |
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] || { [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -z "$SUPABASE_URL_ALT" ]; }; then
+            echo "Skipping Supabase seed because required Supabase secrets are missing."
+            exit 0
+          fi
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] && [ -n "$SUPABASE_URL_ALT" ]; then
+            export NEXT_PUBLIC_SUPABASE_URL="$SUPABASE_URL_ALT"
+          fi
           node scripts/seed-supabase.js
-
-      - name: Skip Supabase seed if secrets are missing
-        if: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY == '' || (secrets.NEXT_PUBLIC_SUPABASE_URL == '' && secrets.SUPABASE_URL == '') }}
-        run: echo "Skipping Supabase seed because required Supabase secrets are missing."
 
       - name: Seed MongoDB
         env:
@@ -80,19 +83,18 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/crisislens-trainer:latest,ghcr.io/${{ github.repository_owner }}/crisislens-trainer:${{ github.sha }}
 
       - name: Trigger retrain endpoint
-        if: ${{ secrets.APP_URL != '' && secrets.DEPLOY_KEY != '' && secrets.TRAINING_MANIFEST != '' }}
         env:
           APP_URL: ${{ secrets.APP_URL }}
           DEPLOY_KEY: ${{ secrets.DEPLOY_KEY }}
           TRAINING_MANIFEST: ${{ secrets.TRAINING_MANIFEST }}
           IMAGE_TAG: ghcr.io/${{ github.repository_owner }}/crisislens-trainer:${{ github.sha }}
         run: |
+          if [ -z "$APP_URL" ] || [ -z "$DEPLOY_KEY" ] || [ -z "$TRAINING_MANIFEST" ]; then
+            echo "Skipping retrain trigger because APP_URL, DEPLOY_KEY, or TRAINING_MANIFEST is missing."
+            exit 0
+          fi
           echo "Calling retrain endpoint with image $IMAGE_TAG"
           curl -sS -X POST "$APP_URL/api/kubeflow/retrain" \
             -H "Authorization: Bearer $DEPLOY_KEY" \
             -H "Content-Type: application/json" \
             -d '{"manifest":"'"$TRAINING_MANIFEST"'","tag":"workflow-${{ github.sha }}","image":"'"$IMAGE_TAG"'"}'
-
-      - name: Skip retrain trigger if secrets are missing
-        if: ${{ secrets.APP_URL == '' || secrets.DEPLOY_KEY == '' || secrets.TRAINING_MANIFEST == '' }}
-        run: echo "Skipping retrain trigger because APP_URL, DEPLOY_KEY, or TRAINING_MANIFEST is missing."
