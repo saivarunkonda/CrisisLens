@@ -87,7 +87,7 @@ async function supabaseInsertReport(input: Omit<IncidentReport, "id" | "createdA
     await supabase.from('reports').insert([dbRecord]);
     // best-effort replicate to Mongo for ML/raw storage
     replicateToMongo(report, input).catch(() => {})
-  } catch (e) {
+  } catch {
     // ignore insert errors, fall back to returning the report
   }
   return report;

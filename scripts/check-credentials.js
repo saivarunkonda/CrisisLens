@@ -32,7 +32,7 @@ async function checkMongo() {
     client = new MongoClient(MONGODB_URI);
     await client.connect();
     const db = client.db(MONGODB_DB);
-    const ping = await db.command({ ping: 1 });
+    await db.command({ ping: 1 });
     console.log('MongoDB connected: OK');
   } catch (err) {
     console.error('MongoDB connection failed:', err.message || err);

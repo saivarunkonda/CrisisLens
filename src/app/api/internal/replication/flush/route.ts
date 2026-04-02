@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { MongoClient, ObjectId } from 'mongodb'
+import { MongoClient } from 'mongodb'
 
 export async function POST(req: NextRequest) {
   // Simple internal endpoint to trigger a flush; restrict via env INTERNAL_API_KEY if set
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
         const doc = { ...report, created_at: report.createdAt ? new Date(report.createdAt) : new Date(), raw_payload: it.rawPayload || null, replicated_at: new Date() }
         await raw.insertOne(doc)
         await q.deleteOne({ _id: it._id as any })
-      } catch (e) {
+      } catch {
         // continue
       }
     }

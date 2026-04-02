@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Flush replication_queue -> raw_reports
-const { MongoClient, ObjectId } = require('mongodb')
+const { MongoClient } = require('mongodb')
 require('dotenv').config()
 
 async function main() {

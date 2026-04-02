@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const k8s = require('@kubernetes/client-node')
       const kc = new k8s.KubeConfig()
-      try { kc.loadFromDefault() } catch (e) { /* ignore */ }
+      try { kc.loadFromDefault() } catch { /* ignore */ }
 
       const namespace = process.env.K8S_NAMESPACE || 'default'
 
@@ -191,7 +191,7 @@ export async function POST(req: NextRequest) {
       const batchApi = kc.makeApiClient(k8s.BatchV1Api)
       const res = await batchApi.createNamespacedJob(namespace, job)
       return NextResponse.json({ jobName, kubeResponse: res.body })
-    } catch (kerr) {
+    } catch {
       // If kube client not present or not configured, return the manifest for CI to apply
       return NextResponse.json({ jobName, manifest: job, warning: 'Kubernetes submit unavailable; returning manifest' })
     }
