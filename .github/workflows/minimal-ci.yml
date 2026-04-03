@@ -1,0 +1,101 @@
+name: Minimal CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run linting
+        run: npm run lint
+        
+      - name: Build application
+        run: npm run build
+        env:
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          
+      - name: Test ML service
+        run: |
+          cd ml-service
+          pip install -r requirements.txt
+          python -m py_compile app.py train.py
+          
+  deploy-staging:
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build and push Docker image
+        if: secrets.GHCR_TOKEN
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.web
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+          
+      - name: Upload training data to S3
+        if: secrets.AWS_ACCESS_KEY_ID && secrets.S3_BUCKET
+        run: |
+          npm install @aws-sdk/client-s3
+          node -e "
+          const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+          const s3 = new S3Client({
+            region: '${{ secrets.AWS_REGION || 'us-east-1' }}',
+            credentials: {
+              accessKeyId: '${{ secrets.AWS_ACCESS_KEY_ID }}',
+              secretAccessKey: '${{ secrets.AWS_SECRET_ACCESS_KEY }}'
+            }
+          });
+          
+          const manifest = {
+            generated_at: new Date().toISOString(),
+            version: '${{ github.sha }}',
+            environment: 'staging'
+          };
+          
+          s3.send(new PutObjectCommand({
+            Bucket: '${{ secrets.S3_BUCKET }}',
+            Key: 'manifest.json',
+            Body: JSON.stringify(manifest, null, 2),
+            ContentType: 'application/json'
+          })).then(() => console.log('✅ Manifest uploaded to S3'))
+            .catch(err => console.error('❌ S3 upload failed:', err));
+          "

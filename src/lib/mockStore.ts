@@ -1,195 +1,108 @@
-export type RegionRisk = {
+// Mock data store for CrisisLens development
+// In production, this would be replaced with actual database operations
+
+export interface RegionData {
   region: string;
   floodRisk: number;
   heatRisk: number;
   healthRisk: number;
   supplyRisk: number;
-  overallRisk: number;
-  recommendation: string;
-};
+}
 
-export type IncidentReport = {
+export interface Report {
   id: string;
   region: string;
-  category: "flood" | "heat" | "health" | "supply";
+  category: 'flood' | 'heat' | 'health' | 'supply';
   severity: number;
   note: string;
-  createdAt: string;
-};
-
-
-import { getCollection } from "./mongo";
-import { supabase } from "./supabase";
-
-// Attempt to replicate a report to Mongo `raw_reports`. On failure, write to `replication_queue` for later retry.
-async function replicateToMongo(report: any, rawPayload?: any) {
-  try {
-    const col = await getCollection('raw_reports')
-    const doc = { ...report, created_at: report.createdAt ?? report.created_at ?? new Date().toISOString(), raw_payload: rawPayload || null, replicated_at: new Date() }
-    await col.insertOne(doc)
-    return true
-  } catch (err) {
-    try {
-      const q = await getCollection('replication_queue')
-      await q.insertOne({ report, rawPayload, error: String(err), queued_at: new Date() })
-    } catch (e) {
-      // last resort: log to console
-      console.error('replication failed and queue insert failed', e)
-    }
-    return false
-  }
+  createdAt: Date;
 }
 
-const baseRisk: Omit<RegionRisk, "overallRisk" | "recommendation">[] = [
-  { region: "North District", floodRisk: 36, heatRisk: 52, healthRisk: 41, supplyRisk: 28 },
-  { region: "Central District", floodRisk: 28, heatRisk: 63, healthRisk: 49, supplyRisk: 37 },
-  { region: "South District", floodRisk: 61, heatRisk: 45, healthRisk: 38, supplyRisk: 32 },
-  { region: "East District", floodRisk: 44, heatRisk: 59, healthRisk: 51, supplyRisk: 42 },
+// Mock region data
+export const mockRegions: RegionData[] = [
+  {
+    region: "North District",
+    floodRisk: 45,
+    heatRisk: 60,
+    healthRisk: 30,
+    supplyRisk: 25,
+  },
+  {
+    region: "South District", 
+    floodRisk: 70,
+    heatRisk: 40,
+    healthRisk: 55,
+    supplyRisk: 35,
+  },
+  {
+    region: "East District",
+    floodRisk: 25,
+    heatRisk: 75,
+    healthRisk: 40,
+    supplyRisk: 30,
+  },
+  {
+    region: "West District",
+    floodRisk: 55,
+    heatRisk: 35,
+    healthRisk: 45,
+    supplyRisk: 60,
+  },
+  {
+    region: "Central District",
+    floodRisk: 40,
+    heatRisk: 50,
+    healthRisk: 35,
+    supplyRisk: 40,
+  },
 ];
 
+// Mock reports storage
+const mockReports: Report[] = [
+  {
+    id: "1",
+    region: "North District",
+    category: "flood",
+    severity: 3,
+    note: "Minor flooding in low-lying areas",
+    createdAt: new Date("2026-04-03T10:00:00Z"),
+  },
+  {
+    id: "2", 
+    region: "South District",
+    category: "heat",
+    severity: 4,
+    note: "Heat wave affecting elderly population",
+    createdAt: new Date("2026-04-03T11:30:00Z"),
+  },
+];
 
-// Switch between MongoDB and Supabase
-const DB_BACKEND = (process.env.DB_BACKEND || "mongodb").replace(/"/g, ""); // "mongodb" or "supabase"
-
-// Supabase helpers (note: Supabase/Postgres uses snake_case columns; map to camelCase)
-async function supabaseFetchReports(): Promise<IncidentReport[]> {
-  const { data, error } = await supabase
-    .from('reports')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error || !data) return [];
-  // normalize created_at -> createdAt for app types
-  return (data as any[]).map((r) => ({
-    id: r.id,
-    region: r.region,
-    category: r.category,
-    severity: r.severity,
-    note: r.note,
-    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
-  }));
+export function getRegionDimensions(): RegionData[] {
+  return mockRegions;
 }
 
-async function supabaseInsertReport(input: Omit<IncidentReport, "id" | "createdAt">): Promise<IncidentReport> {
-  const report: IncidentReport = {
-    id: (globalThis.crypto && (globalThis.crypto as any).randomUUID) ? (globalThis.crypto as any).randomUUID() : Date.now().toString(),
-    createdAt: new Date().toISOString(),
-    ...input,
+export function getReports(): Report[] {
+  return mockReports;
+}
+
+export function addReport(report: Omit<Report, 'id' | 'createdAt'>): Report {
+  const newReport: Report = {
+    ...report,
+    id: String(mockReports.length + 1),
+    createdAt: new Date(),
   };
-  const dbRecord = {
-    id: report.id,
-    region: report.region,
-    category: report.category,
-    severity: report.severity,
-    note: report.note,
-    created_at: report.createdAt,
-  };
-  try {
-    await supabase.from('reports').insert([dbRecord]);
-    // best-effort replicate to Mongo for ML/raw storage
-    replicateToMongo(report, input).catch(() => {})
-  } catch {
-    // ignore insert errors, fall back to returning the report
-  }
-  return report;
+  mockReports.push(newReport);
+  return newReport;
 }
 
-async function supabaseReportBoost(region: string, category: IncidentReport["category"]): Promise<number> {
-  const reports = await supabaseFetchReports();
-  return reports
-    .filter((r) => r.region === region && r.category === category)
-    .reduce((sum, report) => sum + report.severity * 2.5, 0);
-}
-
-// MongoDB helpers (as before)
-async function fetchReports(): Promise<IncidentReport[]> {
-  try {
-    const col = await getCollection<IncidentReport>("reports");
-    return await col.find({}).sort({ createdAt: -1 }).toArray();
-  } catch {
-    return [];
-  }
-}
-
-async function insertReport(input: Omit<IncidentReport, "id" | "createdAt">): Promise<IncidentReport> {
-  const report: IncidentReport = {
-    id: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-    ...input,
-  };
-  try {
-    const col = await getCollection<IncidentReport>("reports");
-    await col.insertOne(report);
-    // also write a raw copy for ML ingestion
-    replicateToMongo(report, input).catch(() => {})
-  } catch {
-    // fallback: do nothing
-  }
-  return report;
-}
-
-async function reportBoost(region: string, category: IncidentReport["category"]): Promise<number> {
-  const reports = await fetchReports();
-  return reports
-    .filter((r) => r.region === region && r.category === category)
-    .reduce((sum, report) => sum + report.severity * 2.5, 0);
-}
-export async function getRegionDimensions(): Promise<RegionDimensions[]> {
-  if (DB_BACKEND === "supabase") {
-    return Promise.all(
-      baseRisk.map(async (row) => ({
-        region: row.region,
-        floodRisk: clamp(row.floodRisk + (await supabaseReportBoost(row.region, "flood"))),
-        heatRisk: clamp(row.heatRisk + (await supabaseReportBoost(row.region, "heat"))),
-        healthRisk: clamp(row.healthRisk + (await supabaseReportBoost(row.region, "health"))),
-        supplyRisk: clamp(row.supplyRisk + (await supabaseReportBoost(row.region, "supply"))),
-      }))
-    );
-  }
-  return Promise.all(
-    baseRisk.map(async (row) => ({
-      region: row.region,
-      floodRisk: clamp(row.floodRisk + (await reportBoost(row.region, "flood"))),
-      heatRisk: clamp(row.heatRisk + (await reportBoost(row.region, "heat"))),
-      healthRisk: clamp(row.healthRisk + (await reportBoost(row.region, "health"))),
-      supplyRisk: clamp(row.supplyRisk + (await reportBoost(row.region, "supply"))),
-    }))
-  );
-}
-
-function clamp(value: number) {
-  return Math.max(0, Math.min(100, Math.round(value)));
-}
-
-export function recommendationFor(overallRisk: number) {
-  if (overallRisk >= 75) return "Open emergency response cell and prioritize supplies.";
-  if (overallRisk >= 60) return "Deploy targeted field checks and pre-position resources.";
-  if (overallRisk >= 45) return "Send public advisory and monitor trend every 6 hours.";
-  return "Maintain routine monitoring and encourage community reporting.";
-}
-
-
-/** Per-region dimension scores (reports applied). Overall is filled by ML API or fallback. */
-export type RegionDimensions = {
-  region: string;
-  floodRisk: number;
-  heatRisk: number;
-  healthRisk: number;
-  supplyRisk: number;
-};
-
-
-export async function getReports() {
-  if (DB_BACKEND === "supabase") {
-    return await supabaseFetchReports();
+export function recommendationFor(overallRisk: number): string {
+  if (overallRisk >= 80) {
+    return "🚨 CRITICAL: Immediate evacuation recommended. Emergency services activated.";
+  } else if (overallRisk >= 60) {
+    return "⚠️ HIGH: Prepare for potential evacuation. Monitor situation closely.";
+  } else if (overallRisk >= 40) {
+    return "🟡 MEDIUM: Increase awareness. Prepare emergency supplies.";
   } else {
-    return await fetchReports();
-  }
-}
-
-export async function addReport(input: Omit<IncidentReport, "id" | "createdAt">) {
-  if (DB_BACKEND === "supabase") {
-    return await supabaseInsertReport(input);
-  } else {
-    return await insertReport(input);
+    return "✅ LOW: Normal operations. Continue routine monitoring.";
   }
 }
