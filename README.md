@@ -2,46 +2,52 @@
 
 AI-powered crisis awareness and response platform for NGOs, campus teams, and municipalities.
 
+## 🌐 **Live Deployment**
+
+**🚀 Check out the live app:** [https://crisis-lens-876g-hz8f2yxds-saivarunkondas-projects.vercel.app/](https://crisis-lens-876g-hz8f2yxds-saivarunkondas-projects.vercel.app/)
+
+### ✨ **Latest Features**
+- 🔐 **OAuth Authentication** - Login with Google or GitHub
+- 📊 **Enhanced Dashboard** - Real-time analytics and risk monitoring
+- 🚨 **Incident Reporting** - Submit and track crisis incidents
+- 🎯 **Risk Assessment** - ML-powered risk predictions
+- 👥 **Role-Based Access** - Admin, Analyst, and Viewer roles
+- 📱 **Responsive Design** - Works on all devices
+- 📈 **Performance Analytics** - Built-in Vercel analytics
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js 20+
-- Docker & Docker Compose
-- AWS CLI (for deployment)
+- Supabase Account (for database)
+- Vercel Account (for deployment)
 
 ### Local Development
 ```bash
 # Install dependencies
 npm install
 
+# Setup environment variables
+cp .env.example .env.local
+# Add your Supabase and OAuth credentials
+
+# Setup database
+node scripts/setup-database.js
+
 # Start development server
 npm run dev
-
-# Start ML service (in another terminal)
-cd ml-service && pip install -r requirements.txt && python -m uvicorn app:app --host 0.0.0.0 --port 8000
-
-# Or use Docker Compose
-docker-compose up -d
 ```
 
 Access the application at http://localhost:3000
 
-## 📁 Project Structure
+### Database Setup
+1. Create a Supabase project
+2. Run the `database-setup.sql` in Supabase SQL Editor
+3. Add environment variables to `.env.local`
 
-```
-crisislens/
-├── src/                    # Next.js application
-│   ├── app/               # App Router pages
-│   ├── components/        # React components
-│   ├── lib/              # Utility libraries
-│   └── types/            # TypeScript types
-├── ml-service/            # FastAPI ML service
-├── .github/workflows/     # CI/CD pipeline
-├── scripts/              # Deployment scripts
-├── docker-compose.yml    # Local deployment
-├── nginx.conf           # Production proxy
-└── Dockerfile.*          # Container definitions
-```
+---
 
 ## 🔧 Configuration
 
@@ -49,82 +55,123 @@ crisislens/
 Copy `.env.example` to `.env.local` and configure:
 
 ```bash
-# Supabase
+# Supabase Database
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# Authentication
+# Authentication (Required)
 AUTH_SECRET=your-auth-secret-min-32-chars
+NEXTAUTH_SECRET=your-auth-secret-min-32-chars
+NEXTAUTH_URL=http://localhost:3000  # or your vercel URL
+AUTH_BACKEND=supabase
 
-# Stripe (optional)
-STRIPE_PUBLISHABLE_KEY=your-stripe-publishable-key
-STRIPE_SECRET_KEY=your-stripe-secret-key
+# OAuth Providers (Optional)
+AUTH_GOOGLE_ID=your-google-client-id
+AUTH_GOOGLE_SECRET=your-google-client-secret
+AUTH_GITHUB_ID=your-github-client-id
+AUTH_GITHUB_SECRET=your-github-client-secret
 
-# AWS (for deployment)
-AWS_REGION=us-east-1
-S3_BUCKET=crisislens-training-data
+# Application URLs
+APP_URL=http://localhost:3000  # or your vercel URL
+ML_SERVICE_URL=http://localhost:8000  # or your vercel URL
 ```
 
-## 🐳 Docker Deployment
+### OAuth Setup
 
-### Local Deployment
+#### Google OAuth
+1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Create OAuth 2.0 Client ID
+3. Add redirect URI: `http://localhost:3000/api/auth/callback/google`
+4. Add JavaScript origin: `http://localhost:3000`
+
+#### GitHub OAuth
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers)
+2. Create OAuth App
+3. Set callback URL: `http://localhost:3000/api/auth/callback/github`
+4. Set homepage URL: `http://localhost:3000`
+
+---
+
+## 🚀 Vercel Deployment
+
+### One-Click Deployment
+1. Push your code to GitHub
+2. Connect your repository to [Vercel](https://vercel.com)
+3. Add environment variables in Vercel dashboard
+4. Deploy! 🚀
+
+### Required Vercel Environment Variables
 ```bash
-# Start all services
-docker-compose up -d
+# Database
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
 
-# Check status
-docker-compose ps
+# Authentication
+AUTH_SECRET=your-secure-secret-32-chars
+NEXTAUTH_SECRET=your-secure-secret-32-chars
+NEXTAUTH_URL=https://your-app.vercel.app
+AUTH_BACKEND=supabase
 
-# View logs
-docker-compose logs -f
+# OAuth (if using)
+AUTH_GOOGLE_ID=...
+AUTH_GOOGLE_SECRET=...
+AUTH_GITHUB_ID=...
+AUTH_GITHUB_SECRET=...
+
+# Application
+APP_URL=https://your-app.vercel.app
 ```
 
-### Production Deployment
-```bash
-# Deploy latest version
-./scripts/deploy-local.sh
-```
+### Update OAuth for Production
+After deployment, update your OAuth providers:
+- **Google**: Add `https://your-app.vercel.app/api/auth/callback/google`
+- **GitHub**: Update callback to `https://your-app.vercel.app/api/auth/callback/github`
 
-## 🚀 CI/CD Pipeline
-
-### Automated Deployment
-1. Push to `main` branch
-2. GitHub Actions automatically:
-   - Runs tests and builds
-   - Publishes Docker images
-   - Updates S3 manifests
-   - Triggers deployment
-
-### Required GitHub Secrets
-```yaml
-AWS_ROLE_ARN: arn:aws:iam::ACCOUNT:role/crisislens-github-actions-role
-AWS_REGION: us-east-1
-S3_BUCKET: crisislens-training-data
-AUTH_SECRET: your-auth-secret
-NEXT_PUBLIC_SUPABASE_URL: your-supabase-url
-NEXT_PUBLIC_SUPABASE_ANON_KEY: your-anon-key
-SUPABASE_SERVICE_ROLE_KEY: your-service-role-key
-STRIPE_PUBLISHABLE_KEY: your-stripe-key
-STRIPE_SECRET_KEY: your-stripe-secret
-```
+---
 
 ## 🏗️ Architecture
 
-### Services
-- **Web App**: Next.js 16 with App Router
-- **ML API**: FastAPI with risk prediction
+### Tech Stack
+- **Frontend**: Next.js 16 with App Router & TypeScript
 - **Database**: Supabase (PostgreSQL)
-- **Storage**: AWS S3 for training data
-- **Proxy**: Nginx with SSL and rate limiting
+- **Authentication**: NextAuth.js with OAuth
+- **Styling**: Tailwind CSS
+- **Analytics**: Vercel Analytics & Speed Insights
+- **Deployment**: Vercel
 
 ### Features
-- 🔐 Authentication with NextAuth.js
-- 💳 Stripe payment integration
-- 🤖 ML-powered risk assessment
-- 📊 Real-time dashboard
-- 🚨 Incident reporting
-- 📱 Responsive design
+- 🔐 **Multi-provider Authentication** (Google, GitHub, Credentials)
+- � **Real-time Dashboard** with risk analytics
+- 🚨 **Incident Reporting System**
+- 🎯 **ML-powered Risk Assessments**
+- � **Role-Based Access Control** (Admin, Analyst, Viewer)
+- 📱 **Fully Responsive Design**
+- 📈 **Performance Monitoring**
+- 🛡️ **Row-Level Security** (RLS)
+
+---
+
+## 📊 Dashboard Features
+
+### Main Components
+- **Risk Analytics** - Visual risk trends and distributions
+- **Incident Reports** - Submit and track crisis incidents
+- **Notifications Panel** - Real-time alerts and updates
+- **RBAC Panel** - User and role management
+- **Export Panel** - Data export functionality
+- **Registration Form** - New user signups
+
+### Risk Categories
+- 🌊 **Flood Risk** - Flooding and water-related incidents
+- 🔥 **Heat Risk** - Extreme heat events
+- 🏥 **Health Risk** - Medical emergencies
+- 📦 **Supply Risk** - Supply chain disruptions
+- 🏗️ **Infrastructure Risk** - Critical infrastructure
+- � **Security Risk** - Security incidents
+
+---
 
 ## 🧪 Testing
 
@@ -135,89 +182,39 @@ npm run lint
 # Build application
 npm run build
 
-# Test ML service
-curl http://localhost:8000/health
+# Start production server
+npm start
 
-# Test prediction
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{"flood_risk": 80, "heat_risk": 60, "health_risk": 40, "supply_risk": 70}'
+# Test database connection
+curl http://localhost:3000/api/risk
 ```
 
-## 📊 Monitoring
+---
 
-### Health Endpoints
-- Web App: http://localhost:3000
-- ML API: http://localhost:8000/health
-- Nginx: http://localhost:80
+## 📞 Support & Demo
 
-### Logs
-```bash
-# Application logs
-docker-compose logs -f web
+### Demo Credentials
+- **Analyst**: `analyst@crisislens.local` / `DemoUser2026!`
+- **Admin**: `admin@crisislens.local` / `CrisisLens2026!`
+- **Viewer**: `viewer@crisislens.local` / `ViewOnly2026!`
 
-# ML service logs
-docker-compose logs -f ml
+### Getting Help
+- 📧 **Issues**: Create an issue on GitHub
+- 📚 **Documentation**: Check the `/docs` folder
+- 🌐 **Live Demo**: [Try the deployed app](https://crisis-lens-876g-hz8f2yxds-saivarunkondas-projects.vercel.app/)
 
-# Nginx logs
-docker-compose logs -f nginx
-```
+---
 
-## 🔒 Security
+## 🤝 Contributing
 
-- Container security scanning in CI/CD
-- S3 encryption at rest
-- IAM least privilege access
-- Nginx security headers
-- Rate limiting on API endpoints
-- Environment variable management
-
-## 🚀 Scaling
-
-### Horizontal Scaling
-```yaml
-# docker-compose.yml
-services:
-  web:
-    deploy:
-      replicas: 3
-  ml:
-    deploy:
-      replicas: 2
-```
-
-### Load Balancing
-- Nginx upstream configuration
-- Health checks
-- Graceful failover
-
-## 🛠️ Development
-
-### Adding New Features
-1. Create feature branch
-2. Make changes
-3. Test locally
-4. Push and create PR
-5. CI/CD handles deployment
-
-### Code Quality
-- ESLint configuration
-- TypeScript strict mode
-- Pre-commit hooks
-- Automated testing
-
-## 📞 Support
-
-### Demo Users
-- Admin: `admin@crisislens.local` / `CrisisLens2026!`
-- Analyst: `analyst@crisislens.local` / `DemoUser2026!`
-- Viewer: `viewer@crisislens.local` / `ViewOnly2026!`
-
-### Documentation
-- API docs: http://localhost:8000/docs
-- Supabase dashboard: https://app.supabase.com
-- GitHub Actions: Repository → Actions
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
 
 ---
 
 **CrisisLens** - Empowering communities with AI-driven crisis management 🚀
+
+*Built with ❤️ for crisis response teams worldwide*
