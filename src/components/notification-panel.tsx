@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { Role } from "@/lib/rbac";
 
 interface Notification {
@@ -13,50 +13,49 @@ interface Notification {
   region?: string;
 }
 
-export function NotificationPanel({ userRole }: { userRole: Role }) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+interface NotificationPanelProps {
+  userRole: Role;
+}
 
-  // Mock notifications - in production, this would come from WebSocket or polling
-  useEffect(() => {
-    const mockNotifications: Notification[] = [
-      {
-        id: "1",
-        title: "High Risk Alert",
-        message: "North District showing elevated flood risk (75%)",
-        type: "warning",
-        timestamp: new Date(Date.now() - 1000 * 60 * 5), // 5 mins ago
-        read: false,
-        region: "North District",
-      },
-      {
-        id: "2",
-        title: "New Incident Report",
-        message: "Anonymous user reported supply chain disruption in East Zone",
-        type: "info",
-        timestamp: new Date(Date.now() - 1000 * 60 * 15), // 15 mins ago
-        read: false,
-        region: "East Zone",
-      },
-      {
-        id: "3",
-        title: "ML Model Updated",
-        message: "Risk prediction model retrained with 87.5% accuracy",
-        type: "success",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60), // 1 hour ago
-        read: true,
-      },
-    ];
-    setNotifications(mockNotifications);
-    setUnreadCount(mockNotifications.filter(n => !n.read).length);
-  }, []);
+export function NotificationPanel({ userRole }: NotificationPanelProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([
+    {
+      id: "1",
+      title: "High Flood Risk Detected",
+      message: "North District experiencing elevated flood risk due to heavy rainfall",
+      type: "critical",
+      timestamp: new Date("2024-01-15T09:30:00"),
+      read: false,
+      region: "North District",
+    },
+    {
+      id: "2",
+      title: "New Incident Report",
+      message: "Infrastructure damage reported in East District",
+      type: "warning",
+      timestamp: new Date("2024-01-15T08:45:00"),
+      read: false,
+      region: "East District",
+    },
+    {
+      id: "3",
+      title: "System Update Complete",
+      message: "Risk prediction model retrained with 87.5% accuracy",
+      type: "success",
+      timestamp: new Date("2024-01-15T07:00:00"),
+      read: true,
+    },
+  ]);
+  const [unreadCount, setUnreadCount] = useState(() =>
+    notifications.filter((n) => !n.read).length
+  );
 
   const markAsRead = (id: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === id ? { ...n, read: true } : n))
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
-    setUnreadCount(prev => Math.max(0, prev - 1));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
   };
 
   const markAllAsRead = () => {
@@ -92,14 +91,17 @@ export function NotificationPanel({ userRole }: { userRole: Role }) {
     }
   };
 
-  const formatTime = (date: Date) => {
-    const minutes = Math.floor((Date.now() - date.getTime()) / (1000 * 60));
-    if (minutes < 1) return "Just now";
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    return `${Math.floor(hours / 24)}d ago`;
-  };
+  const formatTime = useMemo(() => {
+    return (date: Date) => {
+      const now = Date.now();
+      const minutes = Math.floor((now - date.getTime()) / (1000 * 60));
+      if (minutes < 1) return "Just now";
+      if (minutes < 60) return `${minutes}m ago`;
+      const hours = Math.floor(minutes / 60);
+      if (hours < 24) return `${hours}h ago`;
+      return `${Math.floor(hours / 24)}d ago`;
+    };
+  }, []);
 
   return (
     <div className="relative">

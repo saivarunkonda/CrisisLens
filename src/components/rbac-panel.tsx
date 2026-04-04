@@ -17,36 +17,39 @@ interface RBACPanelProps {
   currentUserRole: Role;
 }
 
+// Static mock data with fixed dates
+const mockUsers: User[] = [
+  {
+    id: "1",
+    email: "admin@crisislens.local",
+    name: "Admin User",
+    role: "admin",
+    status: "active",
+    lastLogin: new Date("2024-01-15T10:30:00"),
+    createdAt: new Date("2023-12-16T09:00:00"),
+  },
+  {
+    id: "2",
+    email: "analyst@crisislens.local",
+    name: "Analyst User",
+    role: "analyst",
+    status: "active",
+    lastLogin: new Date("2024-01-15T08:00:00"),
+    createdAt: new Date("2024-01-01T09:00:00"),
+  },
+  {
+    id: "3",
+    email: "viewer@crisislens.local",
+    name: "Viewer User",
+    role: "viewer",
+    status: "active",
+    lastLogin: new Date("2024-01-14T09:00:00"),
+    createdAt: new Date("2024-01-08T09:00:00"),
+  },
+];
+
 export function RBACPanel({ currentUserRole }: RBACPanelProps) {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: "1",
-      email: "admin@crisislens.local",
-      name: "Admin User",
-      role: "admin",
-      status: "active",
-      lastLogin: new Date(Date.now() - 1000 * 60 * 30),
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30),
-    },
-    {
-      id: "2",
-      email: "analyst@crisislens.local",
-      name: "Analyst User",
-      role: "analyst",
-      status: "active",
-      lastLogin: new Date(Date.now() - 1000 * 60 * 60 * 2),
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15),
-    },
-    {
-      id: "3",
-      email: "viewer@crisislens.local",
-      name: "Viewer User",
-      role: "viewer",
-      status: "active",
-      lastLogin: new Date(Date.now() - 1000 * 60 * 60 * 24),
-      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7),
-    },
-  ]);
+  const [users, setUsers] = useState<User[]>(mockUsers);
 
   const [showAddUser, setShowAddUser] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
