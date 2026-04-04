@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
 import { AppShell } from "@/components/layout/app-shell";
 import { redirect } from "next/navigation";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -17,6 +19,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       }}
     >
       {children}
+      <Analytics />
+      <SpeedInsights />
     </AppShell>
   );
 }
