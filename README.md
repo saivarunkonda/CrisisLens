@@ -4,7 +4,7 @@ AI-powered crisis awareness and response platform for NGOs, campus teams, and mu
 
 ## 🌐 **Live Deployment**
 
-**🚀 Check out the live app:** [https://crisis-lens-876g-hz8f2yxds-saivarunkondas-projects.vercel.app/](https://crisis-lens-876g-hz8f2yxds-saivarunkondas-projects.vercel.app/)
+**🚀 Check out the live app:** [https://crisis-lens-876g.vercel.app/](https://crisis-lens-876g.vercel.app/)
 
 ### ✨ **Latest Features**
 - 🔐 **OAuth Authentication** - Login with Google or GitHub
@@ -201,7 +201,7 @@ curl http://localhost:3000/api/risk
 ### Getting Help
 - 📧 **Issues**: Create an issue on GitHub
 - 📚 **Documentation**: Check the `/docs` folder
-- 🌐 **Live Demo**: [Try the deployed app](https://crisis-lens-876g-hz8f2yxds-saivarunkondas-projects.vercel.app/)
+- 🌐 **Live Demo**: [Try the deployed app](https://crisis-lens-876g.vercel.app/)
 
 ---
 
