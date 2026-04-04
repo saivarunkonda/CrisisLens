@@ -39,14 +39,14 @@ export async function POST(req: NextRequest) {
 
     // Validate region exists
     const regions = await getRegions();
-    const region = regions.find((r: any) => r.id === body.regionId);
+    const region = regions.find((r: any) => r.name === body.regionId || r.id === body.regionId);
     if (!region) {
       return NextResponse.json({ error: "Invalid region ID" }, { status: 400 });
     }
 
     // Create the incident report
     const report = await createIncidentReport({
-      regionId: body.regionId,
+      regionId: region.id, // Use the actual UUID from the found region
       category: body.category,
       severity: body.severity,
       title: body.title,
@@ -62,27 +62,37 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Log user activity
-    await logUserActivity({
-      userId: session.user.id,
-      action: 'submit_report',
-      resourceType: 'incident_report',
-      resourceId: (report as any).id,
-      details: {
-        category: body.category,
-        severity: body.severity,
-        regionId: body.regionId,
-        ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
-        userAgent: req.headers.get('user-agent') || 'unknown'
+    // Log user activity (non-blocking - don't fail if this errors)
+    try {
+      if (session.user.id) {
+        await logUserActivity({
+          userId: session.user.id,
+          action: 'submit_report',
+          resourceType: 'incident_report',
+          resourceId: (report as any).id,
+          details: {
+            category: body.category,
+            severity: body.severity,
+            regionId: body.regionId,
+          },
+          ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
+          userAgent: req.headers.get('user-agent') || 'unknown'
+        });
       }
-    });
+    } catch (logError) {
+      console.error('Failed to log activity:', logError);
+      // Don't fail the request if logging fails
+    }
 
     return NextResponse.json(report, { status: 201 });
 
   } catch (error) {
     console.error('Error creating incident report:', error);
+    console.error('Error type:', typeof error);
+    const errorDetails = error instanceof Error ? { message: error.message, stack: error.stack } : JSON.stringify(error, null, 2);
+    console.error('Error details:', errorDetails);
     return NextResponse.json(
-      { error: 'Internal server error' }, 
+      { error: 'Internal server error', details: typeof errorDetails === 'string' ? errorDetails : errorDetails.message }, 
       { status: 500 }
     );
   }

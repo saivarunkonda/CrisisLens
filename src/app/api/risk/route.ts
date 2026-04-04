@@ -141,8 +141,11 @@ export async function GET() {
 
   } catch (error) {
     console.error('Error in risk API:', error);
+    console.error('Error type:', typeof error);
+    const errorDetails = error instanceof Error ? { message: error.message, stack: error.stack } : JSON.stringify(error, null, 2);
+    console.error('Error details:', errorDetails);
     return NextResponse.json(
-      { error: 'Internal server error' }, 
+      { error: 'Internal server error', details: typeof errorDetails === 'string' ? errorDetails : errorDetails.message }, 
       { status: 500 }
     );
   }
