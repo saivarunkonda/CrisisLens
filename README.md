@@ -133,15 +133,8 @@ AUTH_GITHUB_ID=...
 AUTH_GITHUB_SECRET=...
 
 # Application
-APP_URL=https://your-app.vercel.app
+APP_URL=https://crisis-lens-876g.vercel.app/
 ```
-
-### Update OAuth for Production
-After deployment, update your OAuth providers:
-- **Google**: Add `https://your-app.vercel.app/api/auth/callback/google`
-- **GitHub**: Update callback to `https://your-app.vercel.app/api/auth/callback/github`
-
----
 
 ## 🏗️ Architecture
 

@@ -31,12 +31,12 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET || '' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || '' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY || '' }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY || '' }}
 
       - name: Test ML service
         run: |
@@ -57,6 +57,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials
+        if: ${{ secrets.AWS_ROLE_ARN != '' }}
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
@@ -115,6 +116,7 @@ jobs:
           EOF
 
       - name: Upload manifest to S3
+        if: ${{ secrets.AWS_ROLE_ARN != '' }}
         run: |
           aws s3 cp manifest.json s3://${{ env.S3_BUCKET }}/manifests/${{ github.sha }}.json
           aws s3 cp manifest.json s3://${{ env.S3_BUCKET }}/manifests/latest.json
@@ -149,10 +151,12 @@ jobs:
           chmod +x deploy.sh
 
       - name: Upload deployment script to S3
+        if: ${{ secrets.AWS_ROLE_ARN != '' }}
         run: |
           aws s3 cp deploy.sh s3://${{ env.S3_BUCKET }}/deployments/${{ github.sha }}/deploy.sh
 
       - name: Update deployment trigger
+        if: ${{ secrets.AWS_ROLE_ARN != '' }}
         run: |
           cat > deployment-trigger.json << EOF
           {

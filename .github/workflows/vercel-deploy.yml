@@ -31,21 +31,21 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
-          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
-          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
-          EMERGENCY_API_KEY: ${{ secrets.EMERGENCY_API_KEY }}
-          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
-          SOCIAL_MEDIA_API_KEY: ${{ secrets.SOCIAL_MEDIA_API_KEY }}
-          EMERGENCY_API_URL: ${{ secrets.EMERGENCY_API_URL }}
-          SOCIAL_MEDIA_API_URL: ${{ secrets.SOCIAL_MEDIA_API_URL }}
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          S3_BUCKET: ${{ secrets.S3_BUCKET }}
-          ML_SERVICE_URL: ${{ secrets.ML_SERVICE_URL }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET || '' }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || '' }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY || '' }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY || '' }}
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY || '' }}
+          EMERGENCY_API_KEY: ${{ secrets.EMERGENCY_API_KEY || '' }}
+          NEWS_API_KEY: ${{ secrets.NEWS_API_KEY || '' }}
+          SOCIAL_MEDIA_API_KEY: ${{ secrets.SOCIAL_MEDIA_API_KEY || '' }}
+          EMERGENCY_API_URL: ${{ secrets.EMERGENCY_API_URL || '' }}
+          SOCIAL_MEDIA_API_URL: ${{ secrets.SOCIAL_MEDIA_API_URL || '' }}
+          AWS_REGION: ${{ secrets.AWS_REGION || '' }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET || '' }}
+          ML_SERVICE_URL: ${{ secrets.ML_SERVICE_URL || '' }}
 
       - name: Test ML service
         run: |
@@ -64,13 +64,19 @@ jobs:
         run: npm install --global vercel@latest
 
       - name: Pull Vercel Environment Information
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build Project Artifacts
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy Project Artifacts to Vercel
+        if: ${{ secrets.VERCEL_TOKEN != '' }}
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Skip Vercel deploy (no token)
+        if: ${{ secrets.VERCEL_TOKEN == '' }}
+        run: echo "Skipping Vercel deploy because VERCEL_TOKEN is not configured. Set the secret in repository or organization settings to enable automatic deploys."
 
   deploy-ml-service:
     needs: test
@@ -149,8 +155,8 @@ jobs:
             node scripts/setup-database.js
           fi
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || '' }}
 
       - name: Create deployment notification
         run: |
