@@ -1,0 +1,49 @@
+input_features:
+  - name: description
+    type: text
+    encoder:
+      type: bert
+      trainable: false
+  - name: flood
+    type: number
+  - name: extreme_heat
+    type: number
+  - name: rain_storm
+    type: number
+  - name: earthquake
+    type: number
+  - name: health
+    type: number
+  - name: pollution
+    type: number
+  - name: food_scarcity
+    type: number
+  - name: water_scarcity
+    type: number
+  - name: political_unrest
+    type: number
+  - name: war_conflict
+    type: number
+  - name: economic_crash
+    type: number
+  - name: security
+    type: number
+  - name: supply_chain
+    type: number
+  - name: traffic
+    type: number
+  - name: power_outage
+    type: number
+  - name: network_outage
+    type: number
+
+output_features:
+  - name: overall_risk
+    type: number
+
+trainer:
+  epochs: 20
+  batch_size: 64
+  learning_rate: 0.001
+  optimizer:
+    type: adam

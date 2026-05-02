@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS regions (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Enable pgvector extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
 -- Create incident_reports table
 CREATE TABLE IF NOT EXISTS incident_reports (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -27,6 +30,9 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   latitude FLOAT,
   longitude FLOAT,
   location_address TEXT,
+  country TEXT DEFAULT 'India',
+  state TEXT,
+  city TEXT,
   reported_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   verified BOOLEAN DEFAULT FALSE,
   verified_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -36,9 +42,42 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   estimated_damage DECIMAL(10,2),
   images TEXT[],
   sources JSONB DEFAULT '{}',
+  embedding vector(384), -- Dimension for all-MiniLM-L6-v2
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Function for similarity search
+CREATE OR REPLACE FUNCTION match_incidents (
+  query_embedding vector(384),
+  match_threshold float,
+  match_count int
+)
+RETURNS TABLE (
+  id UUID,
+  title TEXT,
+  description TEXT,
+  category TEXT,
+  severity INTEGER,
+  similarity float
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT
+    incident_reports.id,
+    incident_reports.title,
+    incident_reports.description,
+    incident_reports.category,
+    incident_reports.severity,
+    1 - (incident_reports.embedding <=> query_embedding) AS similarity
+  FROM incident_reports
+  WHERE 1 - (incident_reports.embedding <=> query_embedding) > match_threshold
+  ORDER BY incident_reports.embedding <=> query_embedding
+  LIMIT match_count;
+END;
+$$;
 
 -- Create risk_assessments table
 CREATE TABLE IF NOT EXISTS risk_assessments (

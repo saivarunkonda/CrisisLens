@@ -6,6 +6,11 @@ import type { Role } from "@/lib/rbac";
 
 const links: { href: string; label: string; adminOnly?: boolean }[] = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/analytics", label: "Analytics" },
+  { href: "/map", label: "Live Map" },
+  { href: "/reports", label: "Reports" },
+  { href: "/alerts", label: "Global Alerts" },
+  { href: "/agents", label: "Intel Agents" },
   { href: "/ml/retrain", label: "ML & Kubeflow", adminOnly: true },
   { href: "/settings", label: "Settings" },
 ];

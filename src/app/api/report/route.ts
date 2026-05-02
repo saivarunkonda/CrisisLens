@@ -2,15 +2,49 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { createIncidentReport, getRegions, getIncidentReports, logUserActivity } from "@/lib/database-simple";
 
+// Maps the 23 dynamic risk factor IDs → valid Supabase DB category enum values
+const CATEGORY_MAP: Record<string, string> = {
+  // Environment
+  flood: "flood",
+  extreme_heat: "heat",
+  rain_storm: "flood",
+  earthquake: "infrastructure",
+  hurricane: "flood",
+  // Health
+  health: "health",
+  pollution: "health",
+  food_scarcity: "health",
+  water_scarcity: "health",
+  pandemic: "health",
+  fatalities: "health",
+  // Society
+  political_unrest: "security",
+  war_conflict: "security",
+  economic_crash: "supply",
+  security: "security",
+  violent_crime: "security",
+  property_crime: "security",
+  cyber_attack: "security",
+  // Infrastructure
+  supply_chain: "supply",
+  traffic: "infrastructure",
+  power_outage: "infrastructure",
+  network_outage: "infrastructure",
+  fuel_shortage: "supply",
+};
+
 type ReportBody = {
   regionId?: string;
-  category?: "flood" | "heat" | "health" | "supply" | "infrastructure" | "security";
+  category?: string; // Accepts all 23 dynamic factor IDs
   severity?: number;
   title?: string;
   description?: string;
   latitude?: number;
   longitude?: number;
   locationAddress?: string;
+  country?: string;
+  state?: string;
+  city?: string;
   images?: string[];
   sources?: Record<string, any>;
 };
@@ -28,38 +62,73 @@ export async function POST(req: NextRequest) {
 
     const body = (await req.json()) as ReportBody;
     
-    // Validate required fields
-    if (!body.regionId || !body.category || !body.severity || !body.title || !body.description) {
-      return NextResponse.json({ error: "Missing required fields: regionId, category, severity, title, description" }, { status: 400 });
+    // Validate required fields (regionId is optional — auto-assigned)
+    if (!body.category || !body.severity || !body.description) {
+      return NextResponse.json({ error: "Missing required fields: category, severity, description" }, { status: 400 });
     }
     
     if (body.severity < 1 || body.severity > 5) {
       return NextResponse.json({ error: "Severity must be between 1 and 5." }, { status: 400 });
     }
 
-    // Validate region exists
-    const regions = await getRegions();
-    const region = regions.find((r: any) => r.name === body.regionId || r.id === body.regionId);
-    if (!region) {
-      return NextResponse.json({ error: "Invalid region ID" }, { status: 400 });
+    // Generate embedding for RAG if description exists
+    let embedding: number[] | undefined = undefined;
+    const mlServiceUrl = process.env.ML_SERVICE_URL?.replace(/\/$/, "");
+    if (mlServiceUrl && body.description) {
+      try {
+        const embRes = await fetch(`${mlServiceUrl}/embeddings`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: body.description }),
+        });
+        if (embRes.ok) {
+          const { embedding: emb } = await embRes.json();
+          embedding = emb;
+        }
+      } catch (embError) {
+        console.error("Failed to generate embedding:", embError);
+      }
     }
 
-    // Create the incident report
+    const rawCategory = body.category ?? "flood";
+    const dbCategory = CATEGORY_MAP[rawCategory] ?? "security";
+    const prettyCategory = rawCategory.replace(/_/g, " ");
+    const locationLabel = [body.city, body.state, body.country].filter(Boolean).join(", ") || "unknown location";
+    const reportTitle = body.title ?? `${prettyCategory} incident in ${locationLabel}`;
+
+    // Auto-assign region — look up by name/id if provided, else use first available
+    let regionId: string | null = null;
+    try {
+      const regions = await getRegions();
+      const matched = body.regionId
+        ? regions.find((r: any) => r.name === body.regionId || r.id === body.regionId)
+        : null;
+      regionId = (matched ?? regions[0])?.id ?? null;
+    } catch (regionErr) {
+      console.warn("Could not fetch regions, proceeding without region_id:", regionErr);
+    }
+
+    // Create the incident report with normalized DB category
     const report = await createIncidentReport({
-      regionId: region.id, // Use the actual UUID from the found region
-      category: body.category,
+      regionId: regionId as string,
+      category: dbCategory,
       severity: body.severity,
-      title: body.title,
+      title: reportTitle,
       description: body.description,
       latitude: body.latitude,
       longitude: body.longitude,
       locationAddress: body.locationAddress,
+      country: body.country,
+      state: body.state,
+      city: body.city,
       images: body.images,
-      sources: body.sources || {
+      embedding,
+      sources: body.sources ?? {
         reported_by: session.user.email,
         user_role: session.user.role,
-        submission_method: 'web_dashboard'
-      }
+        original_category: rawCategory,
+        submission_method: "web_dashboard",
+      },
     });
 
     // Log user activity (non-blocking - don't fail if this errors)
@@ -86,13 +155,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(report, { status: 201 });
 
-  } catch (error) {
-    console.error('Error creating incident report:', error);
-    console.error('Error type:', typeof error);
-    const errorDetails = error instanceof Error ? { message: error.message, stack: error.stack } : JSON.stringify(error, null, 2);
-    console.error('Error details:', errorDetails);
+  } catch (error: any) {
+    console.error("Error creating incident report:", error);
+    
+    // Pass raw database error to the client if available
+    const errorMsg = error?.message || error?.details || "Internal server error";
+    
     return NextResponse.json(
-      { error: 'Internal server error', details: typeof errorDetails === 'string' ? errorDetails : errorDetails.message }, 
+      { error: errorMsg, rawError: String(error) }, 
       { status: 500 }
     );
   }

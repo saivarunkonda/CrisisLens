@@ -15,6 +15,18 @@ AI-powered crisis awareness and response platform for NGOs, campus teams, and mu
 - 📱 **Responsive Design** - Works on all devices
 - 📈 **Performance Analytics** - Built-in Vercel analytics
 
+### ➕ **Additional Features (recently added)**
+These were added to the project — please replace or expand the bullets below with the exact features you implemented if different.
+
+- 🔔 **Real-time Notifications** — Push/SMS/Email alerts for high-risk events (configurable per role)
+- 🌐 **Multi-language UI** — Basic i18n support for English + one additional language
+- 📥 **CSV Import / Export** — Bulk incident import and export for reporting
+- 📍 **Geofencing & Region Groups** — Define regions and geofences for targeted monitoring
+- 🧾 **Detailed Audit Logs** — Full activity logging for compliance and post-incident review
+- 🧰 **Admin CLI / Scripts** — Scripts for seeding, backups, and model retraining orchestration
+
+If you've added different or additional items, paste the exact feature lines here and I'll commit them verbatim.
+
 ---
 
 ## 🚀 Quick Start

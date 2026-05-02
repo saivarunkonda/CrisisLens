@@ -47,3 +47,20 @@ temp/
 !package.json
 !package-lock.json
 !tsconfig.json
+!vercel.json
+
+# Python and ML Service
+venv/
+.venv/
+.venv311/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Data and Models
+*.hdf5
+*.parquet
+*.csv
+ml-service/results/

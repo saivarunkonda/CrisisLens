@@ -78,26 +78,54 @@ export async function createIncidentReport(report: {
   latitude?: number
   longitude?: number
   locationAddress?: string
+  country?: string
+  state?: string
+  city?: string
   images?: string[]
   sources?: Record<string, any>
+  embedding?: number[]
 }) {
+  const payload: any = {
+    region_id: report.regionId,
+    category: report.category,
+    severity: report.severity,
+    title: report.title,
+    description: report.description,
+    latitude: report.latitude,
+    longitude: report.longitude,
+    location_address: report.locationAddress,
+    images: report.images,
+    sources: {
+      ...report.sources,
+      country: report.country || 'India',
+      state: report.state,
+      city: report.city
+    }
+  }
+
+  // Only attach embedding if it exists to avoid Supabase schema cache crash if pgvector isn't set up yet
+  if (report.embedding) {
+    payload.embedding = report.embedding;
+  }
+
   const { data, error } = await supabase
     .from('incident_reports')
-    .insert({
-      region_id: report.regionId,
-      category: report.category,
-      severity: report.severity,
-      title: report.title,
-      description: report.description,
-      latitude: report.latitude,
-      longitude: report.longitude,
-      location_address: report.locationAddress,
-      images: report.images,
-      sources: report.sources
-    })
+    .insert(payload)
     .select()
     .single()
   
+  if (error) throw error
+  return data
+}
+
+// RAG: Similarity search
+export async function findSimilarIncidents(embedding: number[], threshold = 0.5, count = 5) {
+  const { data, error } = await supabase.rpc('match_incidents', {
+    query_embedding: embedding,
+    match_threshold: threshold,
+    match_count: count
+  })
+
   if (error) throw error
   return data
 }
@@ -123,16 +151,11 @@ export async function getRiskAssessments(regionId?: string) {
 
 export async function createRiskAssessment(assessment: {
   regionId: string
-  floodRisk: number
-  heatRisk: number
-  healthRisk: number
-  supplyRisk: number
-  infrastructureRisk: number
-  securityRisk: number
   overallRisk: number
   confidenceScore: number
   riskLevel: string
   modelVersion: string
+  dynamicFactors?: Record<string, number>
   features: Record<string, any>
   featureImportance: Record<string, any>
 }) {
@@ -140,22 +163,18 @@ export async function createRiskAssessment(assessment: {
     .from('risk_assessments')
     .insert({
       region_id: assessment.regionId,
-      flood_risk: assessment.floodRisk,
-      heat_risk: assessment.heatRisk,
-      health_risk: assessment.healthRisk,
-      supply_risk: assessment.supplyRisk,
-      infrastructure_risk: assessment.infrastructureRisk,
-      security_risk: assessment.securityRisk,
       overall_risk: assessment.overallRisk,
       confidence_score: assessment.confidenceScore,
       risk_level: assessment.riskLevel,
       model_version: assessment.modelVersion,
+      dynamic_factors: assessment.dynamicFactors || {},
       features: assessment.features,
       feature_importance: assessment.featureImportance,
       valid_until: new Date(Date.now() + 60 * 60 * 1000).toISOString()
     })
     .select()
     .single()
+  
   
   if (error) throw error
   return data

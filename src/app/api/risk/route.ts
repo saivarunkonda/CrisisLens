@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { 
   getRegions, 
@@ -11,15 +11,25 @@ import {
 import { mlPipeline } from "@/lib/ml-pipeline";
 import { predictOverallRisk } from "@/lib/mlClient";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get all regions with their latest risk assessments
-    const regions = await getRegions();
+    // Get regions (apply optional limit to prevent initial overload)
+    const { searchParams } = new URL(req.url);
+    const limitParam = searchParams.get("limit");
+    const limit = limitParam ? parseInt(limitParam, 10) : undefined;
+
+    let regions = await getRegions();
+    if (limit && limit > 0) {
+      // Sort regions by some heuristic or just slice if we want top priority
+      // Here we just slice the array directly to avoid O(N) downstream loops on heavy pages
+      regions = regions.slice(0, limit);
+    }
+    
     const latestAssessments = await getRiskAssessments();
     
     // Get incident reports for additional context
@@ -35,74 +45,70 @@ export async function GET() {
       // Get recent reports for this region
       const regionReports = (reports as any[]).filter((report: any) => report.region_id === region.id);
 
-      // Calculate base risks from infrastructure and historical data
-      const baseRisks = {
-        floodRisk: calculateBaseFloodRisk(region, regionReports),
-        heatRisk: calculateBaseHeatRisk(region, regionReports),
-        healthRisk: calculateBaseHealthRisk(region, regionReports),
-        supplyRisk: calculateBaseSupplyRisk(region, regionReports),
-        infrastructureRisk: 1 - region.infrastructure_score,
-        securityRisk: calculateBaseSecurityRisk(region, regionReports)
-      };
+      // Calculate unified 23-dimensional dynamic metrics across region history
+      const dynamicFactors: Record<string, number> = {};
+      const matrixKeys = [
+        "flood", "extreme_heat", "rain_storm", "earthquake", "hurricane",
+        "health", "pollution", "food_scarcity", "water_scarcity", "pandemic", "fatalities",
+        "political_unrest", "war_conflict", "economic_crash", "security", "violent_crime", "property_crime", "cyber_attack",
+        "supply_chain", "traffic", "power_outage", "network_outage", "fuel_shortage"
+      ];
+
+      matrixKeys.forEach(key => {
+         const reports = regionReports.filter((r: any) => r.category === key);
+         const intensityImpact = reports.reduce((sum: number, r: any) => sum + (r.severity * 4.5), 0);
+         dynamicFactors[key] = Math.min(100, Math.max(0, 15 + intensityImpact + (region.population > 500000 ? 5 : 0)));
+      });
 
       // Use ML service for prediction if available, otherwise use latest assessment
       let overallRisk: number;
       let source: 'ml' | 'database' | 'fallback';
       
       if (latestAssessment && new Date(latestAssessment.valid_until || 0) > new Date()) {
-        // Use valid database assessment
+        // Use valid database assessment natively resolving JSONB structure
         overallRisk = latestAssessment.overall_risk;
         source = 'database';
       } else {
-        // Use real ML pipeline prediction
+        // Use real ML pipeline prediction against the robust 20D matrix
         try {
-          const mlPrediction = await mlPipeline.predict(baseRisks, 'risk_prediction_v1');
+          // Instead of hardcoded properties, pass the entire flattened dynamic properties to PyTorch
+          const mlPrediction = await mlPipeline.predict(dynamicFactors as any, 'risk_prediction_v1');
           overallRisk = mlPrediction.overallRisk;
           source = 'ml';
           
-          // Save new assessment to database
+          // Save new deeply-unified assessment to database (now supports standard JSONB payload)
           await createRiskAssessment({
             regionId: region.id,
-            floodRisk: baseRisks.floodRisk,
-            heatRisk: baseRisks.heatRisk,
-            healthRisk: baseRisks.healthRisk,
-            supplyRisk: baseRisks.supplyRisk,
-            infrastructureRisk: baseRisks.infrastructureRisk,
-            securityRisk: baseRisks.securityRisk,
             overallRisk,
             confidenceScore: mlPrediction.confidence,
             riskLevel: calculateRiskLevel(overallRisk),
             modelVersion: mlPrediction.modelVersion,
+            dynamicFactors,
             features: {
-              ...baseRisks,
+              ...dynamicFactors,
+              infrastructureScore: region.infrastructure_score,
               ml_feature_importance: mlPrediction.featureImportance,
               prediction_confidence: mlPrediction.confidence
             },
             featureImportance: mlPrediction.featureImportance
           });
         } catch (mlError) {
-          // Fallback to simple ML service if pipeline fails
-          console.warn('ML pipeline failed, using fallback:', mlError);
-          const mlResult = await predictOverallRisk(
-            baseRisks.floodRisk,
-            baseRisks.heatRisk,
-            baseRisks.healthRisk,
-            baseRisks.supplyRisk
-          );
-          overallRisk = mlResult.overallRisk;
-          source = mlResult.source;
+          console.warn('ML pipeline failed, using fallback heuristic algorithms:', mlError);
+          const compositeRawScore = (dynamicFactors.flood + dynamicFactors.extreme_heat + dynamicFactors.health + dynamicFactors.supply_chain) / 4;
+          overallRisk = Math.min(100, Math.round(compositeRawScore));
+          source = 'fallback';
         }
       }
 
       return {
         region: region.name,
         regionId: region.id,
-        floodRisk: baseRisks.floodRisk,
-        heatRisk: baseRisks.heatRisk,
-        healthRisk: baseRisks.healthRisk,
-        supplyRisk: baseRisks.supplyRisk,
-        infrastructureRisk: baseRisks.infrastructureRisk,
-        securityRisk: baseRisks.securityRisk,
+        dynamicFactors,
+        // Legacy compat fields expected by RegionRisk type
+        floodRisk: dynamicFactors.flood ?? 0,
+        heatRisk: dynamicFactors.extreme_heat ?? 0,
+        healthRisk: dynamicFactors.health ?? 0,
+        supplyRisk: dynamicFactors.supply_chain ?? 0,
         overallRisk,
         riskLevel: calculateRiskLevel(overallRisk),
         recommendation: generateRecommendation(calculateRiskLevel(overallRisk)),

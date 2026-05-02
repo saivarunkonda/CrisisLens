@@ -1,19 +1,22 @@
 "use client";
 
 import { useMemo } from "react";
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend
+} from 'recharts';
 
 interface RiskChartProps {
   data: {
     risks?: Array<{
       region: string;
       overallRisk: number;
-      floodRisk: number;
-      heatRisk: number;
-      healthRisk: number;
-      supplyRisk: number;
+      dynamicFactors: Record<string, number>;
     }>;
   } | null;
 }
+
+const COLORS = ['#ef4444', '#f59e0b', '#eab308', '#10b981'];
 
 export function RiskAnalytics({ data }: RiskChartProps) {
   const stats = useMemo(() => {
@@ -22,34 +25,43 @@ export function RiskAnalytics({ data }: RiskChartProps) {
     const risks = data.risks;
     const totalRegions = risks.length;
     
-    // Calculate averages
+    // Calculate averages using the dynamic factors JSONB struct
     const avgOverall = Math.round(risks.reduce((sum, r) => sum + r.overallRisk, 0) / totalRegions);
-    const avgFlood = Math.round(risks.reduce((sum, r) => sum + r.floodRisk, 0) / totalRegions);
-    const avgHeat = Math.round(risks.reduce((sum, r) => sum + r.heatRisk, 0) / totalRegions);
-    const avgHealth = Math.round(risks.reduce((sum, r) => sum + r.healthRisk, 0) / totalRegions);
-    const avgSupply = Math.round(risks.reduce((sum, r) => sum + r.supplyRisk, 0) / totalRegions);
+    const avgFlood = Math.round(risks.reduce((sum, r) => sum + (r.dynamicFactors.flood || 0), 0) / totalRegions);
+    const avgHeat = Math.round(risks.reduce((sum, r) => sum + (r.dynamicFactors.extreme_heat || 0), 0) / totalRegions);
+    const avgHealth = Math.round(risks.reduce((sum, r) => sum + (r.dynamicFactors.health || 0), 0) / totalRegions);
+    const avgSupply = Math.round(risks.reduce((sum, r) => sum + (r.dynamicFactors.supply_chain || 0), 0) / totalRegions);
+    const avgCrime = Math.round(risks.reduce((sum, r) => sum + (r.dynamicFactors.violent_crime || 0), 0) / totalRegions);
+    const avgCyber = Math.round(risks.reduce((sum, r) => sum + (r.dynamicFactors.cyber_attack || 0), 0) / totalRegions);
+    const avgTraffic = Math.round(risks.reduce((sum, r) => sum + (r.dynamicFactors.traffic || 0), 0) / totalRegions);
 
-    // Find highest risk region
     const highestRisk = risks.reduce((max, r) => r.overallRisk > max.overallRisk ? r : max, risks[0]);
     
-    // Count risk levels
     const critical = risks.filter(r => r.overallRisk >= 80).length;
     const high = risks.filter(r => r.overallRisk >= 60 && r.overallRisk < 80).length;
     const medium = risks.filter(r => r.overallRisk >= 40 && r.overallRisk < 60).length;
     const low = risks.filter(r => r.overallRisk < 40).length;
 
+    // Format for Recharts
+    const pieData = [
+      { name: 'Critical (>80)', value: critical },
+      { name: 'High (60-79)', value: high },
+      { name: 'Medium (40-59)', value: medium },
+      { name: 'Low (<40)', value: low },
+    ].filter(d => d.value > 0);
+
+    const barData = [
+      { name: 'Flood', score: avgFlood },
+      { name: 'Heat', score: avgHeat },
+      { name: 'Health', score: avgHealth },
+      { name: 'Supply', score: avgSupply },
+      { name: 'Crime', score: avgCrime },
+      { name: 'Cyber', score: avgCyber },
+      { name: 'Traffic', score: avgTraffic }
+    ];
+
     return {
-      avgOverall,
-      avgFlood,
-      avgHeat,
-      avgHealth,
-      avgSupply,
-      highestRisk,
-      critical,
-      high,
-      medium,
-      low,
-      totalRegions,
+      avgOverall, highestRisk, totalRegions, pieData, barData
     };
   }, [data]);
 
@@ -61,123 +73,80 @@ export function RiskAnalytics({ data }: RiskChartProps) {
     );
   }
 
-  const getBarColor = (value: number) => {
-    if (value >= 80) return "bg-red-500";
-    if (value >= 60) return "bg-amber-500";
-    if (value >= 40) return "bg-yellow-400";
-    return "bg-emerald-500";
-  };
-
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-      <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50">
-        Risk Analytics & Trends
+      <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50 mb-1">
+        Advanced Risk Diagnostics
       </h2>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        Overview of crisis risk across all monitored regions
+      <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+        Volumetric analysis and category breakdowns across all {stats.totalRegions} monitored regions.
       </p>
 
-      {/* Summary Stats */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Average Overall Risk</p>
-          <p className={`mt-1 text-2xl font-bold ${stats.avgOverall >= 60 ? 'text-red-600' : stats.avgOverall >= 40 ? 'text-amber-600' : 'text-emerald-600'}`}>
-            {stats.avgOverall}%
-          </p>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Pie Chart Representation */}
+        <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 h-80 flex flex-col items-center">
+          <h3 className="w-full text-sm font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 pb-2 mb-2 text-center">
+            Global Incident Severity Distribution
+          </h3>
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie
+                data={stats.pieData}
+                cx="50%"
+                cy="50%"
+                innerRadius={60}
+                outerRadius={90}
+                paddingAngle={5}
+                dataKey="value"
+                stroke="none"
+              >
+                {stats.pieData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip 
+                 contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: 'none', borderRadius: '8px', color: '#fff' }}
+                 itemStyle={{ color: '#fff' }}
+              />
+              <Legend verticalAlign="bottom" height={36} />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
-        <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Highest Risk Region</p>
-          <p className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">
-            {stats.highestRisk.region}
-          </p>
-          <p className="text-xs text-red-600">{stats.highestRisk.overallRisk}%</p>
+
+        {/* Bar Chart Representation */}
+        <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-4 border border-slate-100 dark:border-slate-700 h-80 flex flex-col items-center">
+          <h3 className="w-full text-sm font-semibold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 pb-2 mb-2 text-center">
+            Aggregate Category Vectors
+          </h3>
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={stats.barData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
+              <XAxis dataKey="name" tick={{ fill: '#64748b', fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip 
+                 cursor={{fill: 'transparent'}}
+                 contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: 'none', borderRadius: '8px', color: '#fff' }}
+              />
+              <Bar dataKey="score" name="Average Risk %" radius={[4, 4, 0, 0]}>
+                {stats.barData.map((entry, index) => {
+                   const color = entry.score >= 60 ? '#ef4444' : entry.score >= 40 ? '#f59e0b' : '#3b82f6';
+                   return <Cell key={`cell-${index}`} fill={color} />;
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
-        <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Critical Regions</p>
-          <p className="mt-1 text-2xl font-bold text-red-600">{stats.critical}</p>
-        </div>
-        <div className="rounded-lg bg-slate-50 p-4 dark:bg-slate-800">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Low Risk Regions</p>
-          <p className="mt-1 text-2xl font-bold text-emerald-600">{stats.low}</p>
-        </div>
+
       </div>
 
-      {/* Risk Distribution Chart */}
-      <div className="mt-6">
-        <h3 className="mb-3 text-sm font-medium text-slate-900 dark:text-slate-100">
-          Risk Level Distribution
-        </h3>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="w-16 text-xs text-slate-500">Critical</span>
-            <div className="flex-1 rounded-full bg-slate-200 dark:bg-slate-700">
-              <div
-                className="h-4 rounded-full bg-red-500 transition-all"
-                style={{ width: `${(stats.critical / stats.totalRegions) * 100}%` }}
-              />
-            </div>
-            <span className="w-8 text-xs font-medium">{stats.critical}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-16 text-xs text-slate-500">High</span>
-            <div className="flex-1 rounded-full bg-slate-200 dark:bg-slate-700">
-              <div
-                className="h-4 rounded-full bg-amber-500 transition-all"
-                style={{ width: `${(stats.high / stats.totalRegions) * 100}%` }}
-              />
-            </div>
-            <span className="w-8 text-xs font-medium">{stats.high}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-16 text-xs text-slate-500">Medium</span>
-            <div className="flex-1 rounded-full bg-slate-200 dark:bg-slate-700">
-              <div
-                className="h-4 rounded-full bg-yellow-400 transition-all"
-                style={{ width: `${(stats.medium / stats.totalRegions) * 100}%` }}
-              />
-            </div>
-            <span className="w-8 text-xs font-medium">{stats.medium}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-16 text-xs text-slate-500">Low</span>
-            <div className="flex-1 rounded-full bg-slate-200 dark:bg-slate-700">
-              <div
-                className="h-4 rounded-full bg-emerald-500 transition-all"
-                style={{ width: `${(stats.low / stats.totalRegions) * 100}%` }}
-              />
-            </div>
-            <span className="w-8 text-xs font-medium">{stats.low}</span>
-          </div>
+      <div className="mt-8 flex justify-between items-center bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
+        <div>
+          <p className="text-sm text-indigo-800 dark:text-indigo-300 font-medium tracking-wide">SYSTEM DIAGNOSTIC</p>
+          <p className="text-indigo-900 dark:text-indigo-200 font-bold mt-1">Average Aggregate Threat Level: {stats.avgOverall}%</p>
         </div>
-      </div>
-
-      {/* Risk Type Breakdown */}
-      <div className="mt-6">
-        <h3 className="mb-3 text-sm font-medium text-slate-900 dark:text-slate-100">
-          Average Risk by Type
-        </h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { label: "Flood", value: stats.avgFlood, color: "bg-blue-500" },
-            { label: "Heat", value: stats.avgHeat, color: "bg-orange-500" },
-            { label: "Health", value: stats.avgHealth, color: "bg-rose-500" },
-            { label: "Supply", value: stats.avgSupply, color: "bg-amber-500" },
-          ].map((item) => (
-            <div key={item.label} className="rounded-lg border border-slate-200 p-3 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-slate-600 dark:text-slate-400">{item.label}</span>
-                <span className={`text-sm font-bold ${item.value >= 60 ? 'text-red-600' : item.value >= 40 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                  {item.value}%
-                </span>
-              </div>
-              <div className="mt-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700">
-                <div
-                  className={`h-2 rounded-full ${item.color} transition-all`}
-                  style={{ width: `${item.value}%` }}
-                />
-              </div>
-            </div>
-          ))}
+        <div className="text-right">
+          <p className="text-sm text-indigo-800 dark:text-indigo-300 font-medium tracking-wide">HIGHEST VOLATILITY REGION</p>
+          <p className="text-indigo-900 dark:text-indigo-200 font-bold mt-1 text-red-600 dark:text-red-400">{stats.highestRisk.region} ({stats.highestRisk.overallRisk}%)</p>
         </div>
       </div>
     </div>

@@ -9,18 +9,25 @@ import { RegistrationForm } from "@/components/registration-form";
 import { ExportPanel } from "@/components/export-panel";
 import { RiskAnalytics } from "@/components/risk-analytics";
 import type { Role } from "@/lib/rbac";
+import { getCountries, getStates, getCities, getDefaultCountry } from "@/lib/location-data";
+import {
+  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  ScatterChart, Scatter, ZAxis
+} from "recharts";
 
 const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 hour in milliseconds
 const WARNING_BEFORE_LOGOUT = 5 * 60 * 1000; // 5 minutes warning
 
 type RegionRisk = {
   region: string;
+  overallRisk: number;
+  recommendation: string;
+  dynamicFactors: Record<string, number>;
   floodRisk: number;
   heatRisk: number;
   healthRisk: number;
   supplyRisk: number;
-  overallRisk: number;
-  recommendation: string;
 };
 
 type ApiResponse = {
@@ -37,7 +44,12 @@ type ApiResponse = {
   risks: RegionRisk[];
 };
 
-const categories = ["flood", "heat", "health", "supply"] as const;
+const categories = [
+  "flood", "extreme_heat", "rain_storm", "earthquake", "hurricane",
+  "health", "pollution", "food_scarcity", "water_scarcity", "pandemic", "fatalities",
+  "political_unrest", "war_conflict", "economic_crash", "security", "violent_crime", "property_crime", "cyber_attack",
+  "supply_chain", "traffic", "power_outage", "network_outage", "fuel_shortage"
+] as const;
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -49,7 +61,12 @@ export default function DashboardPage() {
   const [note, setNote] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
+  const [country, setCountry] = useState(getDefaultCountry());
+  const [state, setState] = useState("");
+  const [city, setCity] = useState("");
   const [showWarning, setShowWarning] = useState(false);
+  const [similarIncidents, setSimilarIncidents] = useState<any[]>([]);
+  const [fetchingSimilar, setFetchingSimilar] = useState(false);
   
   const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
   const warningTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -100,15 +117,20 @@ export default function DashboardPage() {
   }, []);
 
   async function refresh() {
-    const res = await fetch("/api/risk", { cache: "no-store", credentials: "include" });
+    const res = await fetch("/api/risk?limit=5", { cache: "no-store", credentials: "include" });
     if (res.status === 401) {
       setMessage("Session expired — sign in again.");
       return;
     }
     const json = (await res.json()) as ApiResponse;
     setData(json);
-    if (!json.risks?.some((r) => r.region === region)) {
-      setRegion(json.risks?.[0]?.region ?? "North District");
+    
+    // Safety check for region selection
+    if (json.risks && json.risks.length > 0) {
+      const regionExists = json.risks.some((r) => r.region === region);
+      if (!regionExists) {
+        setRegion(json.risks[0].region);
+      }
     }
   }
 
@@ -132,12 +154,14 @@ export default function DashboardPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ 
-        regionId: region, 
-        category, 
-        severity, 
-        title: `${category} incident in ${region}`,
-        description: note 
+      body: JSON.stringify({
+        category,
+        severity,
+        title: `${category.replace(/_/g, " ")} incident`,
+        description: note,
+        country,
+        state,
+        city
       }),
     });
     if (!res.ok) {
@@ -149,12 +173,40 @@ export default function DashboardPage() {
     setMessage("Report submitted. Risk model updated.");
     setNote("");
     await refresh();
+    // After refresh, fetch similar incidents for the new report's context
+    fetchSimilar(region, note);
     setLoading(false);
   }
 
-  const card = "rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900";
+  async function fetchSimilar(regionName: string, description: string) {
+    if (!description) return;
+    setFetchingSimilar(true);
+    try {
+      const res = await fetch("/api/similar-incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setSimilarIncidents(json.similar || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch similar incidents:", err);
+    } finally {
+      setFetchingSimilar(false);
+    }
+  }
+
+  useEffect(() => {
+    if (selected && note) {
+       // Debounced fetch could be here, but for now we'll trigger on submit or selection change
+    }
+  }, [selected]);
+
+  const card = "rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-purple-50 p-4 dark:border-indigo-900 dark:bg-gradient-to-br dark:from-indigo-950 dark:to-purple-950";
   const innerCard =
-    "rounded-xl border border-slate-200 bg-slate-50/80 p-4 dark:border-slate-700 dark:bg-slate-950/50";
+  "rounded-xl border border-indigo-100 bg-white/80 p-4 dark:border-indigo-800 dark:bg-slate-900/80";
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -193,7 +245,7 @@ export default function DashboardPage() {
         </div>
         
         <div className="relative z-10">
-          {/* Top bar with status and region selector */}
+          {/* Top bar with status only — region selector removed */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-medium text-indigo-100">CrisisLens — live operations</p>
@@ -215,24 +267,8 @@ export default function DashboardPage() {
                 </p>
               ) : null}
             </div>
-            
-            {/* Region Selector */}
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-white/90">Region:</label>
-              <select
-                value={region}
-                onChange={(e) => setRegion(e.target.value)}
-                className="rounded-lg border-0 bg-white/20 px-3 py-1.5 text-sm text-white backdrop-blur-sm focus:bg-white/30 focus:outline-none focus:ring-2 focus:ring-white/50"
-              >
-                {!data?.risks?.length && (
-                  <option value="North District" className="text-slate-900">North District</option>
-                )}
-                {data?.risks?.map((r) => (
-                  <option key={r.region} value={r.region} className="text-slate-900">
-                    {r.region}
-                  </option>
-                ))}
-              </select>
+            <div className="text-xs bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 text-white/80 border border-white/20">
+              {data?.summary?.regions ?? 0} regions · {data?.summary?.reports ?? 0} reports · {data?.summary?.highRiskRegions ?? 0} high risk
             </div>
           </div>
 
@@ -279,29 +315,68 @@ export default function DashboardPage() {
         </div>
 
         <div className={card}>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50">
-            Submit incident report
-          </h2>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+          <div className="rounded-xl bg-indigo-600 p-4 text-white shadow-lg dark:bg-indigo-800">
+            <h2 className="text-xl font-semibold">
+              Submit incident report
+            </h2>
+          </div>
+          <p className="mt-4 text-sm text-slate-700 dark:text-slate-300">
             {canSubmit
               ? "Reports feed the risk score engine and update recommendations in real time."
               : "Your role is view-only — you cannot submit reports."}
           </p>
           <form className="mt-4 grid gap-3" onSubmit={submitReport}>
+
             <label className="grid gap-1 text-sm text-slate-700 dark:text-slate-300">
-              Region
+              Country
               <select
                 className="rounded-lg border border-slate-300 bg-white p-2 dark:border-slate-600 dark:bg-slate-950"
-                value={region}
+                value={country}
                 disabled={!canSubmit}
-                onChange={(e) => setRegion(e.target.value)}
+                onChange={(e) => {
+                  setCountry(e.target.value);
+                  setState("");
+                  setCity("");
+                }}
               >
-                {!data?.risks?.length && (
-                  <option value="North District">North District</option>
-                )}
-                {data?.risks?.map((r) => (
-                  <option key={r.region} value={r.region}>
-                    {r.region}
+                {getCountries().map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm text-slate-700 dark:text-slate-300">
+              State
+              <select
+                className="rounded-lg border border-slate-300 bg-white p-2 dark:border-slate-600 dark:bg-slate-950"
+                value={state}
+                disabled={!canSubmit}
+                onChange={(e) => {
+                  setState(e.target.value);
+                  setCity("");
+                }}
+              >
+                <option value="">Select state</option>
+                {getStates(country).map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm text-slate-700 dark:text-slate-300">
+              City
+              <select
+                className="rounded-lg border border-slate-300 bg-white p-2 dark:border-slate-600 dark:bg-slate-950"
+                value={city}
+                disabled={!canSubmit}
+                onChange={(e) => setCity(e.target.value)}
+              >
+                <option value="">Select city</option>
+                {getCities(country, state).map((c) => (
+                  <option key={c} value={c}>
+                    {c}
                   </option>
                 ))}
               </select>
@@ -365,7 +440,159 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* Analytics Section */}
+      {/* Similar Incidents (RAG) */}
+      {similarIncidents.length > 0 && (
+        <section className={card}>
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-50 flex items-center gap-2">
+            <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.168.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            Historical context (RAG)
+          </h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Past incidents with similar descriptions to help inform response.
+          </p>
+          <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {similarIncidents.map((inc, i) => (
+              <div key={i} className={innerCard}>
+                <div className="flex justify-between items-start">
+                  <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                    inc.severity >= 4 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    Severity {inc.severity}
+                  </span>
+                  <span className="text-[10px] text-slate-400">
+                    {Math.round(inc.similarity * 100)}% match
+                  </span>
+                </div>
+                <h4 className="mt-2 font-semibold text-slate-900 dark:text-slate-100 line-clamp-1">{inc.title}</h4>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 line-clamp-3">{inc.description}</p>
+                <div className="mt-2 text-[10px] font-medium text-indigo-600 dark:text-indigo-400">
+                  Category: {inc.category}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Advanced Analytics Charts */}
+      <section className="mt-6 grid gap-6 md:grid-cols-2">
+        {/* Pie Chart — Risk Level Distribution */}
+        {data?.risks && data.risks.length > 0 && (() => {
+          const critical = data.risks.filter(r => r.overallRisk >= 80).length;
+          const high = data.risks.filter(r => r.overallRisk >= 60 && r.overallRisk < 80).length;
+          const medium = data.risks.filter(r => r.overallRisk >= 40 && r.overallRisk < 60).length;
+          const low = data.risks.filter(r => r.overallRisk < 40).length;
+          const pieData = [
+            { name: "Critical", value: critical },
+            { name: "High", value: high },
+            { name: "Medium", value: medium },
+            { name: "Low", value: low },
+          ].filter(d => d.value > 0);
+          const PIE_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e"];
+          return (
+            <div className={card}>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-4">Risk Level Distribution</h2>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={95} paddingAngle={4} dataKey="value" stroke="none">
+                    {pieData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ backgroundColor: "rgba(15,23,42,0.9)", border: "none", borderRadius: 8, color: "#fff" }} />
+                  <Legend verticalAlign="bottom" height={32} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        })()}
+
+        {/* Bar Chart — Overall Risk by Region */}
+        {data?.risks && data.risks.length > 0 && (
+          <div className={card}>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-4">Overall Risk by Region</h2>
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={data.risks.slice(0, 8).map(r => ({ name: r.region.split(" ")[0], risk: r.overallRisk }))} margin={{ top: 5, right: 10, left: 0, bottom: 30 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
+                <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 11 }} angle={-30} textAnchor="end" axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+                <Tooltip contentStyle={{ backgroundColor: "rgba(15,23,42,0.9)", border: "none", borderRadius: 8, color: "#fff" }} cursor={{ fill: "transparent" }} />
+                <Bar dataKey="risk" name="Overall Risk" radius={[4, 4, 0, 0]}>
+                  {data.risks.slice(0, 8).map((r, i) => (
+                    <Cell key={i} fill={r.overallRisk >= 80 ? "#ef4444" : r.overallRisk >= 60 ? "#f97316" : r.overallRisk >= 40 ? "#eab308" : "#22c55e"} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Scatter Plot — Risk Score vs Reports */}
+        {data?.risks && data.risks.length > 0 && (
+          <div className={card}>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-1">Risk Score vs Report Volume</h2>
+            <p className="text-xs text-slate-500 mb-3">Bubble size = relative population</p>
+            <ResponsiveContainer width="100%" height={240}>
+              <ScatterChart margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} />
+                <XAxis type="number" dataKey="x" name="Reports" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} label={{ value: "Reports", position: "insideBottom", offset: -2, fill: "#64748b", fontSize: 11 }} />
+                <YAxis type="number" dataKey="y" name="Overall Risk" tick={{ fill: "#64748b", fontSize: 11 }} axisLine={false} tickLine={false} domain={[0, 100]} />
+                <ZAxis type="number" dataKey="z" range={[40, 200]} />
+                <Tooltip cursor={{ strokeDasharray: "3 3" }} contentStyle={{ backgroundColor: "rgba(15,23,42,0.9)", border: "none", borderRadius: 8, color: "#fff" }} formatter={(v, name) => [v, name]} />
+                <Scatter
+                  name="Regions"
+                  data={data.risks.map((r, i) => ({ x: i + 1, y: r.overallRisk, z: r.overallRisk, name: r.region }))}
+                  fill="#6366f1"
+                />
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Heatmap Table — Category Risk Matrix */}
+        {data?.risks && data.risks.length > 0 && (
+          <div className={card}>
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 mb-4">Category Risk Heatmap</h2>
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs">
+                <thead>
+                  <tr>
+                    <th className="text-left text-slate-500 font-medium pb-2 pr-4">Region</th>
+                    {["Flood", "Heat", "Health", "Supply", "Overall"].map(h => (
+                      <th key={h} className="text-center text-slate-500 font-medium pb-2 px-2">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.risks.slice(0, 8).map((r) => {
+                    const vals = [
+                      r.dynamicFactors?.flood ?? r.floodRisk ?? 0,
+                      r.dynamicFactors?.extreme_heat ?? r.heatRisk ?? 0,
+                      r.dynamicFactors?.health ?? r.healthRisk ?? 0,
+                      r.dynamicFactors?.supply_chain ?? r.supplyRisk ?? 0,
+                      r.overallRisk
+                    ];
+                    return (
+                      <tr key={r.region} className="border-t border-slate-100 dark:border-slate-800">
+                        <td className="py-2 pr-4 font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">{r.region}</td>
+                        {vals.map((v, i) => (
+                          <td key={i} className="text-center py-1 px-2">
+                            <span className={`inline-block rounded px-2 py-0.5 font-bold text-white text-[10px] ${
+                              v >= 70 ? "bg-red-500" : v >= 40 ? "bg-amber-500" : "bg-emerald-500"
+                            }`}>{Math.round(v)}</span>
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Legacy RiskAnalytics (Pie + Bar aggregate) */}
       <section className="mt-6">
         <RiskAnalytics data={data} />
       </section>

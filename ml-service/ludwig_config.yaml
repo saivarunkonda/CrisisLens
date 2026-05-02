@@ -1,0 +1,24 @@
+input_features:
+  - name: flood_risk
+    type: number
+  - name: heat_risk
+    type: number
+  - name: health_risk
+    type: number
+  - name: supply_risk
+    type: number
+  - name: description
+    type: text
+    encoder:
+      type: bert
+      trainable: false
+
+output_features:
+  - name: overall_risk
+    type: number
+
+trainer:
+  epochs: 50
+  learning_rate: 0.001
+  optimizer:
+    type: adam

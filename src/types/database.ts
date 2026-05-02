@@ -68,6 +68,9 @@ export interface Database {
           latitude: number | null
           longitude: number | null
           location_address: string | null
+          country: string
+          state: string | null
+          city: string | null
           reported_by: string | null
           verified: boolean
           verified_by: string | null
@@ -99,6 +102,9 @@ export interface Database {
           estimated_damage?: number | null
           images?: string[] | null
           sources?: Json
+          country?: string
+          state?: string | null
+          city?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -121,6 +127,9 @@ export interface Database {
           estimated_damage?: number | null
           images?: string[] | null
           sources?: Json
+          country?: string
+          state?: string | null
+          city?: string | null
           updated_at?: string
         }
       }
