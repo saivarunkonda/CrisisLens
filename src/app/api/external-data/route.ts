@@ -162,16 +162,18 @@ export async function GET(req: NextRequest) {
       // Create new risk assessment
       await createRiskAssessment({
         regionId,
-        floodRisk: finalFloodRisk,
-        heatRisk: finalHeatRisk,
-        healthRisk: finalHealthRisk,
-        supplyRisk: finalSupplyRisk,
-        infrastructureRisk: 1 - region.infrastructure_score,
-        securityRisk: 20, // Base security risk
         overallRisk,
         confidenceScore: 0.8,
         riskLevel: calculateRiskLevel(overallRisk),
         modelVersion: 'v2.0-external',
+        dynamicFactors: {
+          floodRisk: finalFloodRisk,
+          heatRisk: finalHeatRisk,
+          healthRisk: finalHealthRisk,
+          supplyRisk: finalSupplyRisk,
+          infrastructureRisk: 1 - region.infrastructure_score,
+          securityRisk: 20,
+        },
         features: {
           external_data: true,
           weather: externalData.weather,

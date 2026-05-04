@@ -45,16 +45,18 @@ export async function POST(req: NextRequest) {
       try {
         riskAssessment = await createRiskAssessment({
           regionId,
-          floodRisk: features.flood_risk,
-          heatRisk: features.heat_risk,
-          healthRisk: features.health_risk,
-          supplyRisk: features.supply_risk,
-          infrastructureRisk: features.infrastructure_risk || 20,
-          securityRisk: features.security_risk || 20,
           overallRisk: prediction.overallRisk,
           confidenceScore: prediction.confidence,
           riskLevel: calculateRiskLevel(prediction.overallRisk),
           modelVersion: prediction.modelVersion,
+          dynamicFactors: {
+            floodRisk: features.flood_risk,
+            heatRisk: features.heat_risk,
+            healthRisk: features.health_risk,
+            supplyRisk: features.supply_risk,
+            infrastructureRisk: features.infrastructure_risk || 20,
+            securityRisk: features.security_risk || 20,
+          },
           features: {
             ...features,
             prediction_source: 'ml_api',
