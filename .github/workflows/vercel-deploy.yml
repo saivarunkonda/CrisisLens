@@ -16,6 +16,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check required secrets
+        run: |
+          echo "Checking presence of important secrets (presence only)"
+          if [ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" ]; then echo "MISSING: NEXT_PUBLIC_SUPABASE_URL"; else echo "OK: NEXT_PUBLIC_SUPABASE_URL"; fi
+          if [ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" ]; then echo "MISSING: NEXT_PUBLIC_SUPABASE_ANON_KEY"; else echo "OK: NEXT_PUBLIC_SUPABASE_ANON_KEY"; fi
+          if [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then echo "MISSING: SUPABASE_SERVICE_ROLE_KEY"; else echo "OK: SUPABASE_SERVICE_ROLE_KEY"; fi
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then echo "NOTICE: VERCEL_TOKEN not set — Vercel deploy steps will be skipped"; else echo "OK: VERCEL_TOKEN"; fi
+          if [ -z "${{ secrets.AWS_ROLE_ARN }}" ]; then echo "NOTICE: AWS_ROLE_ARN not set — AWS/S3 steps will be skipped"; else echo "OK: AWS_ROLE_ARN"; fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
