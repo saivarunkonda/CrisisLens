@@ -4,7 +4,7 @@ AI-powered crisis awareness and response platform for NGOs, campus teams, and mu
 
 ## 🌐 **Live Deployment**
 
-**🚀 Check out the live app:** [https://crisis-lens-876g.vercel.app/](https://crisis-lens-876g.vercel.app/)
+**🚀 Check out the live app:** [https://crisis-lens-876g.vercel.app/]([https://crisislens007.vercel.app/])
 
 ### ✨ **Latest Features**
 - 🔐 **OAuth Authentication** - Login with Google or GitHub
